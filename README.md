@@ -4,7 +4,7 @@
 연락처 내용은 바꾸지 않고, 묶음만 나눕니다.
 
 - 앱 받기: [download/contact-unlink.apk](download/contact-unlink.apk)
-- 사용설명서: [download/사용설명서_0.2.txt](download/사용설명서_0.2.txt)
-- 같은 사람 기준: 이름이 글자 하나까지 완전히 같을 때만 같은 사람 후보로 봅니다.
+- 사용설명서: [download/사용설명서_0.3.txt](download/사용설명서_0.3.txt)
+- 같은 사람 기준: 이름·번호·이메일·홈페이지·메모 등 모든 칸이 100% 같을 때만 같은 사람으로 봅니다.
 
 앱은 켤 때 app/version.json을 보고 새 판이 있으면 스스로 받아 설치 화면을 엽니다.
