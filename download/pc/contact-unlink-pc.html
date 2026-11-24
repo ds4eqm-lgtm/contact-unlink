@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>묶인 연락처 풀기 PC판</title>
+<style>
+:root{--bg:#f4f6f9;--card:#fff;--ink:#1d2530;--mute:#6b7685;--line:#e2e6ec;--blue:#1a73e8;--green:#1e8e3e;--red:#c9372c}
+@media (prefers-color-scheme: dark){:root{--bg:#14171c;--card:#1d2128;--ink:#e9edf2;--mute:#9aa4b1;--line:#2c323b;--blue:#6ea8fe;--green:#5cc57a;--red:#ff7b72}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+#ver{font-weight:700;border:1px solid var(--line);border-radius:14px;padding:2px 10px;font-size:14px}
+h1{font-size:20px;margin:0;flex:1}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card>b:first-child{font-size:18px}
+.sub{color:var(--mute);font-size:14px}
+button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.pri{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+button:disabled{opacity:.5;cursor:default}
+input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.pbar{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:8px}.pbar i{display:block;height:100%;width:0;background:var(--blue)}
+.ok{color:var(--green);font-weight:700}.bad{color:var(--red);font-weight:700}
+ol{margin:6px 0;padding-left:22px}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
+.ph{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--line);cursor:pointer}
+.log{max-height:180px;overflow:auto;font-size:13px;white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
+.bk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:8px 0}
+#big{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9}#big img{max-width:92vw;max-height:92vh}
+</style></head><body>
+<header><span id="ver">Ver0.43</span><h1>묶인 연락처 풀기 PC판</h1><span class="sub" id="upd"></span></header>
+<main>
+<div class="card">
+  <b>1. PC 보관 폴더</b>
+  <div class="sub">휴대폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 휴대폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
+  <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()">이 폴더 다시 쓰기 허락</button></div>
+</div>
+
+<div class="card">
+  <b>2. 휴대폰 → PC (와이파이)</b>
+  <div class="sub">휴대폰 앱의 [백업·되살리기] 탭 → [📶 와이파이로 PC와 주고받기]를 누르면 주소와 번호가 나옵니다. PC와 휴대폰이 같은 와이파이(공유기)에 있어야 합니다.</div>
+  <div class="row">주소 <input id="addr" placeholder="192.168.0.5:8765" size="22"> 번호 <input id="code" placeholder="6자리" size="8">
+    <button class="pri" id="bGet" onclick="wifiGet()">휴대폰 백업 가져오기</button><button onclick="stopNow()">■ 멈춤</button></div>
+  <div class="pbar"><i id="pBar"></i></div><div id="pMsg" class="sub"></div>
+</div>
+
+<div class="card">
+  <b>3. 휴대폰 → PC (USB 선)</b>
+  <ol>
+    <li>휴대폰을 USB 선으로 PC에 꽂고, 휴대폰 화면 위 알림에서 [USB 사용 목적] → [파일 전송]을 고릅니다.</li>
+    <li>PC의 파일 탐색기 → 내 PC → (휴대폰 이름) → 내장 메모리 → Download 로 들어갑니다.</li>
+    <li>"묶인연락처풀기" 폴더를 위 1번에서 고른 PC 보관 폴더 안으로 끌어다 놓아 복사합니다(사진이 많으면 시간이 걸립니다).</li>
+    <li>다 복사되면 아래 단추를 누릅니다. 사진 하나하나를 지문값(SHA-256)으로 확인해, 한 바이트라도 다르거나 빠진 것을 알려 줍니다.</li>
+  </ol>
+  <div class="row"><button class="pri" onclick="verifyAll()">보관 폴더 확인하기 (바이트까지)</button></div>
+  <div id="vMsg" class="sub"></div><div id="vLog" class="log" style="display:none"></div>
+</div>
+
+<div class="card">
+  <b>4. 백업 보기와 휴대폰으로 되돌려 보내기</b>
+  <div class="sub">보관 폴더에 있는 백업입니다. [보기]로 연락처를 확인하고, 휴대폰을 잃어버렸거나 새 휴대폰이면 새 휴대폰에 앱을 깔고 [휴대폰으로 보내기]를 누른 뒤 휴대폰 앱에서 [지워진 연락처 되살리기]를 누릅니다.</div>
+  <div class="sub">USB로 보낼 때: 보관 폴더 안의 "묶인연락처풀기" 폴더를 휴대폰 내장 메모리 → Download 안에 다른 이름(예: "PC에서")으로 복사하고, 휴대폰 앱의 [📁 PC에서 휴대폰에 복사해 둔 백업 폴더 불러오기]로 그 폴더를 고릅니다.</div>
+  <div class="row"><button onclick="listBackups()">목록 새로 고침</button></div>
+  <div id="bkList"></div>
+</div>
+
+<div class="card" id="viewCard" style="display:none">
+  <b id="viewTitle">연락처 보기</b>
+  <div class="row"><input id="q" placeholder="이름·번호·메모로 찾기" size="30" oninput="drawView()"><span id="viewInfo" class="sub"></span></div>
+  <div id="view"></div>
+</div>
+
+<div class="card">
+  <b>주소 나눠 주기</b>
+  <div class="sub">다른 사람이 이 프로그램을 쓰면 그 사람 휴대폰의 연락처만 다룹니다. 대표님 연락처에는 닿지 않습니다.</div>
+  <div class="row"><button onclick="copyLink()">주소 복사</button><button onclick="copyLink();location.href='kakaotalk://'">카카오톡으로 (주소 복사 후 열기)</button><button onclick="location.href='mailto:?subject='+encodeURIComponent('묶인 연락처 풀기')+'&body='+encodeURIComponent(LINK)">메일로</button></div>
+</div>
+</main>
+<div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
+<script>
+const VER = '0.43';
+const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
+const PHOTO = '사진원본', BASE = '묶인연락처풀기';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const mb = b => (b = +b || 0) >= 1073741824 ? (b/1073741824).toFixed(2)+'GB' : (b/1048576).toFixed(1)+'MB';
+function copyLink(){ navigator.clipboard.writeText(LINK).then(() => alert('주소를 복사했습니다: ' + LINK), () => prompt('복사해 주세요', LINK)); }
+let root = null, stop = false;
+// 확인에서 바이트가 다르다고 나온 파일: 다음 가져오기 때 꼭 다시 받는다
+let badSet = new Set(); try { badSet = new Set(JSON.parse(localStorage.getItem('bad') || '[]')); } catch(e){}
+function saveBad(){ try { localStorage.setItem('bad', JSON.stringify([...badSet])); } catch(e){} }
+
+// ---------- 보관 폴더 (다음에 켤 때도 기억) ----------
+function idb(){ return new Promise((ok, no) => { const r = indexedDB.open('cu-pc', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); }
+async function saveRoot(h){ try { const d = await idb(); d.transaction('h','readwrite').objectStore('h').put(h, 'root'); } catch(e){} }
+async function loadRoot(){ try { const d = await idb(); return await new Promise(ok => { const r = d.transaction('h').objectStore('h').get('root'); r.onsuccess = () => ok(r.result); r.onerror = () => ok(null); }); } catch(e){ return null; } }
+async function pickRoot(){
+  if (!window.showDirectoryPicker) return alert('이 브라우저는 폴더 쓰기를 지원하지 않습니다. 엣지나 크롬으로 열어 주세요.');
+  try { root = await showDirectoryPicker({ id: 'cu-root', mode: 'readwrite' }); } catch(e) { return; }
+  await saveRoot(root); showRoot(); listBackups();
+}
+async function regrant(){ if (root && (await root.requestPermission({mode:'readwrite'})) === 'granted') { showRoot(); listBackups(); } }
+async function showRoot(){
+  $('#rootName').textContent = root ? '보관 폴더: ' + root.name : '아직 고르지 않았습니다';
+  let p = 'granted'; try { p = root ? await root.queryPermission({mode:'readwrite'}) : 'granted'; } catch(e){}
+  $('#regrant').style.display = root && p !== 'granted' ? '' : 'none';
+}
+async function need(){
+  if (!root) { alert('먼저 1번에서 보관 폴더를 골라 주세요.'); return false; }
+  let p = await root.queryPermission({mode:'readwrite'}); if (p !== 'granted') p = await root.requestPermission({mode:'readwrite'});
+  if (p !== 'granted') { alert('보관 폴더에 쓰기를 허락해 주세요.'); return false; }
+  return true;
+}
+async function base(create){ return root.getDirectoryHandle(BASE, { create: !!create }); }
+async function dirOf(sub, create){ const b = await base(create); return sub ? b.getDirectoryHandle(sub, { create: !!create }) : b; }
+
+// ---------- 지문값 ----------
+async function sha(buf){ const h = await crypto.subtle.digest('SHA-256', buf); return [...new Uint8Array(h)].map(x => x.toString(16).padStart(2,'0')).join(''); }
+const nameSha = n => /^[0-9a-f]{64}/.test(n) ? n.slice(0,64) : null;
+async function fileOf(path){ const k = path.lastIndexOf('/'); const d = await dirOf(k < 0 ? '' : path.slice(0,k)); return (await d.getFileHandle(path.slice(k+1))).getFile(); }
+async function writeFile(path, buf){
+  const k = path.lastIndexOf('/'); const d = await dirOf(k < 0 ? '' : path.slice(0,k), true);
+  const h = await d.getFileHandle(path.slice(k+1), { create: true }); const w = await h.createWritable(); await w.write(buf); await w.close();
+  return h;
+}
+
+// ---------- 와이파이: 휴대폰 → PC ----------
+function phone(){ let a = $('#addr').value.trim().replace(/^https?:\/\//,'').replace(/\/.*$/,''); if (a && !a.includes(':')) a += ':8765'; return 'http://' + a; }
+function prog(done, total, msg){ $('#pBar').style.width = (total ? done * 100 / total : 0).toFixed(1) + '%'; $('#pMsg').textContent = msg; }
+function stopNow(){ stop = true; }
+async function wifiGet(){
+  if (!await need()) return;
+  const k = $('#code').value.trim(); if (!$('#addr').value.trim() || !k) return alert('휴대폰에 나온 주소와 번호를 넣어 주세요.');
+  try { localStorage.setItem('addr', $('#addr').value.trim()); } catch(e){}
+  stop = false; $('#bGet').disabled = true; prog(0, 1, '휴대폰에 연결하는 중… (파일 목록과 지문값을 받는 중, 백업이 많으면 1분쯤 걸립니다)');
+  try {
+    const r = await fetch(phone() + '/list?k=' + encodeURIComponent(k)); if (r.status === 403) throw new Error('번호가 맞지 않습니다. 휴대폰 화면의 번호를 다시 확인해 주세요.');
+    if (!r.ok) throw new Error('휴대폰이 응답하지 않습니다 (' + r.status + ')');
+    const list = await r.json(); let need = [], have = 0, bytes = 0;
+    for (const f of list) {
+      let skip = false;
+      if (!badSet.has(f.p)) try { const x = await fileOf(f.p); if (x.size === f.size && (nameSha(f.p.split('/').pop()) === f.sha || await sha(await x.arrayBuffer()) === f.sha)) skip = true; } catch(e){}
+      if (skip) have++; else { need.push(f); bytes += f.size; }
+    }
+    let done = 0, got = 0, bad = []; const total = need.length;
+    prog(0, total, `전체 ${list.length}개 중 이미 PC에 있는 것 ${have}개, 새로 받을 것 ${total}개 (${mb(bytes)})`);
+    const work = async () => {
+      while (need.length && !stop) {
+        const f = need.shift();
+        try {
+          const rr = await fetch(phone() + '/file?k=' + encodeURIComponent(k) + '&p=' + encodeURIComponent(f.p)); if (!rr.ok) throw new Error('받기 실패 ' + rr.status);
+          const buf = await rr.arrayBuffer();
+          if (buf.byteLength !== f.size || await sha(buf) !== f.sha) throw new Error('받은 바이트가 휴대폰 원본과 다릅니다');
+          await writeFile(f.p, buf);
+          const back = await (await fileOf(f.p)).arrayBuffer(); // PC 디스크에 쓴 것을 다시 읽어 한 번 더 확인
+          if (await sha(back) !== f.sha) throw new Error('PC에 쓴 뒤 확인 실패');
+          got += f.size; badSet.delete(f.p);
+        } catch(e) { bad.push(f.p + ': ' + e.message); }
+        done++; prog(done, total, `받는 중 ${done} / ${total} (${mb(got)} / ${mb(bytes)})${bad.length ? ' · 문제 ' + bad.length + '개' : ''}`);
+      }
+    };
+    await Promise.all([work(), work(), work()]); saveBad();
+    if (stop) prog(done, total, `멈췄습니다. ${done}개까지 받았습니다. 다시 누르면 남은 것만 이어서 받습니다.`);
+    else $('#pMsg').innerHTML = bad.length ? `<span class="bad">✖ ${bad.length}개를 받지 못했습니다. 다시 누르면 그것만 다시 받습니다.</span><br>${bad.slice(0,20).map(esc).join('<br>')}`
+      : `<span class="ok">✔ 끝났습니다. 휴대폰 백업 ${list.length}개 파일이 PC에 바이트 그대로 있습니다(새로 받은 것 ${total}개, ${mb(bytes)}). 모두 지문값으로 확인했습니다.</span>`;
+    listBackups();
+  } catch(e) { $('#pMsg').innerHTML = `<span class="bad">✖ ${esc(e.message)}</span><br>휴대폰 앱에서 [와이파이로 PC와 주고받기] 화면이 열려 있는지, PC와 휴대폰이 같은 와이파이인지 확인해 주세요.`; }
+  $('#bGet').disabled = false;
+}
+
+// ---------- 보관 폴더 확인 (USB로 복사한 뒤) ----------
+async function* walk(d, pre){ for await (const [n, h] of d.entries()) { if (h.kind === 'directory') yield* walk(h, pre + n + '/'); else yield [pre + n, h]; } }
+async function verifyAll(){
+  if (!await need()) return;
+  let b; try { b = await base(); } catch(e) { return $('#vMsg').innerHTML = '<span class="bad">보관 폴더 안에 "묶인연락처풀기" 폴더가 없습니다. 휴대폰의 Download/묶인연락처풀기 폴더를 통째로 보관 폴더 안에 복사해 주세요.</span>'; }
+  const log = $('#vLog'); log.style.display = 'block'; log.textContent = ''; stop = false;
+  const all = []; for await (const x of walk(b, '')) all.push(x);
+  const photos = new Map(); let bad = 0, n = 0, bytes = 0;
+  for (const [p, h] of all) {
+    if (stop) break; n++;
+    const nm = p.split('/').pop(), s = nameSha(nm);
+    if (p.startsWith(PHOTO + '/') && s) {
+      const f = await h.getFile(); bytes += f.size; const got = await sha(await f.arrayBuffer());
+      if (got !== s) { bad++; badSet.add(p); log.textContent += '✖ 사진 바이트가 다릅니다: ' + p + '\n'; } else { photos.set(s, f.size); badSet.delete(p); }
+    }
+    if (n % 50 === 0) $('#vMsg').textContent = `확인하는 중 ${n} / ${all.length}`;
+  }
+  // 백업 JSON 이 가리키는 사진이 모두 있는지
+  let miss = 0, refs = 0, jsons = 0;
+  for (const [p, h] of all) {
+    if (stop || !/^연락처백업_.*\.json$/.test(p)) continue; jsons++;
+    try {
+      const d = JSON.parse(await (await h.getFile()).text());
+      const need = [];
+      for (const t of Object.values(d.tables || {})) for (const row of t) for (const v of Object.values(row)) if (typeof v === 'string' && v.startsWith('b:')) { const [, s, sz] = v.split(':'); need.push([s, +sz]); }
+      for (const x of d.display_photos || []) need.push([x.sha256, x.size]);
+      for (const [s, sz] of need) { refs++; if (photos.get(s) !== sz) { miss++; if (miss < 30) log.textContent += `✖ ${p} 이(가) 쓰는 사진이 없거나 다릅니다: ${s.slice(0,12)}…\n`; } }
+    } catch(e) { bad++; log.textContent += '✖ 백업 파일을 읽지 못했습니다: ' + p + '\n'; }
+  }
+  saveBad();
+  $('#vMsg').innerHTML = stop ? '멈췄습니다.' : (bad || miss)
+    ? `<span class="bad">✖ 문제가 있습니다: 다른 파일 ${bad}개, 빠지거나 다른 사진 ${miss}개. 휴대폰에서 다시 복사하거나 와이파이로 가져오기를 하면 그것만 다시 받습니다.</span>`
+    : `<span class="ok">✔ 모두 맞습니다. 사진 ${photos.size}장(${mb(bytes)})이 이름의 지문값과 바이트까지 같고, 백업 ${jsons}개가 쓰는 사진 ${refs}곳이 모두 있습니다.</span>`;
+  listBackups();
+}
+
+// ---------- 백업 목록·보기 ----------
+let backups = [];
+async function listBackups(){
+  const e = $('#bkList'); if (!root) return;
+  let b; try { if ((await root.queryPermission({mode:'readwrite'})) !== 'granted') return; b = await base(); } catch(x) { e.innerHTML = '<div class="sub">아직 보관한 백업이 없습니다.</div>'; return; }
+  const l = [];
+  for await (const [n, h] of b.entries()) if (h.kind === 'file' && /^연락처백업_.*\.json$/.test(n)) { const f = await h.getFile(); l.push({ name: n, size: f.size, t: f.lastModified }); }
+  l.sort((x, y) => y.name.localeCompare(x.name)); backups = l;
+  e.innerHTML = backups.length ? backups.map((x, i) => `<div class="bk"><b style="flex:1">${esc(x.name)}</b><span class="sub">${mb(x.size)}</span>
+    <button onclick="openBackup(${i})">보기</button><button class="pri" onclick="sendBackup(${i})">휴대폰으로 보내기 (와이파이)</button></div>`).join('') + '<div id="sMsg" class="sub"></div>'
+    : '<div class="sub">아직 보관한 백업이 없습니다.</div>';
+}
+const val = v => v == null ? '' : String(v).slice(2);
+let V = { rows: [], photo: new Map() };
+async function photoMap(){
+  const m = new Map(); try { const d = await dirOf(PHOTO); for await (const [n, h] of d.entries()) { const s = nameSha(n); if (s) m.set(s, h); } } catch(e){}
+  return m;
+}
+async function openBackup(i){
+  if (!await need()) return;
+  const x = backups[i]; $('#viewCard').style.display = 'block'; $('#viewTitle').textContent = '연락처 보기: ' + x.name; $('#view').textContent = '읽는 중…';
+  const d = JSON.parse(await (await fileOf(x.name)).text());
+  const raws = new Map();
+  for (const r of d.tables.raw_contacts || []) raws.set(val(r._id), { id: val(r._id), ac: val(r.account_type) ? val(r.account_type) + ' ' + val(r.account_name) : '휴대폰', name: '', phones: [], emails: [], notes: [], thumb: null, full: null });
+  for (const r of d.tables.data || []) {
+    const o = raws.get(val(r.raw_contact_id)); if (!o) continue; const mt = val(r.mimetype);
+    if (mt.endsWith('/name')) o.name = val(r.data1); else if (mt.endsWith('/phone_v2')) o.phones.push(val(r.data1)); else if (mt.endsWith('/email_v2')) o.emails.push(val(r.data1));
+    else if (mt.endsWith('/note')) o.notes.push(val(r.data1)); else if (mt.endsWith('/photo') && r.data15) o.thumb = r.data15;
+  }
+  for (const p of d.display_photos || []) { const o = raws.get(String(p.raw)); if (o) o.full = p.sha256; }
+  V = { rows: [...raws.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko')), photo: await photoMap(), d, lim: 100 };
+  $('#viewInfo').textContent = `원본 ${V.rows.length}개 · 사진 ${(d.display_photos||[]).length}장 · 만든 때 ${d.made || ''} · ${d.device || ''}`;
+  drawView(); $('#viewCard').scrollIntoView();
+}
+async function imgUrl(v){
+  if (!v) return '';
+  if (v.startsWith('B:')) return 'data:image/jpeg;base64,' + v.slice(2);
+  const s = v.startsWith('b:') ? v.split(':')[1] : v; const h = V.photo.get(s); if (!h) return '';
+  return URL.createObjectURL(new Blob([await (await h.getFile()).arrayBuffer()], { type: 'image/jpeg' }));
+}
+async function drawView(){
+  const q = $('#q').value.trim().toLowerCase();
+  const l = V.rows.filter(o => !q || (o.name + ' ' + o.phones.join(' ') + ' ' + o.emails.join(' ') + ' ' + o.notes.join(' ')).toLowerCase().includes(q));
+  const show = l.slice(0, V.lim || 100);
+  $('#view').innerHTML = `<table><tr><th></th><th>이름</th><th>전화번호</th><th>이메일</th><th>메모</th><th>저장 위치</th></tr>${show.map((o, i) =>
+    `<tr><td><img class="ph" data-i="${i}"></td><td>${esc(o.name || '(이름 없음)')}</td><td>${o.phones.map(esc).join('<br>')}</td><td>${o.emails.map(esc).join('<br>')}</td><td>${o.notes.map(esc).join('<br>')}</td><td class="sub">${esc(o.ac)}</td></tr>`).join('')}</table>
+    ${l.length > show.length ? `<div class="row"><button onclick="V.lim+=100;drawView()">${l.length - show.length}개 더 보기</button></div>` : ''}<div class="sub">${l.length}개</div>`;
+  document.querySelectorAll('#view img.ph').forEach(async im => { const o = show[+im.dataset.i]; const u = await imgUrl(o.thumb); if (u) im.src = u; else im.style.visibility = o.full ? 'visible' : 'hidden';
+    im.onclick = async () => { const f = await imgUrl(o.full ? 'b:' + o.full : o.thumb); if (f) { $('#bigImg').src = f; $('#big').style.display = 'flex'; } }; });
+}
+
+// ---------- PC → 휴대폰 (와이파이) ----------
+async function sendBackup(i){
+  if (!await need()) return;
+  const k = $('#code').value.trim(); if (!$('#addr').value.trim() || !k) return alert('2번 칸에 휴대폰에 나온 주소와 번호를 먼저 넣어 주세요.');
+  const x = backups[i], m = $('#sMsg'); stop = false;
+  const files = [x.name]; const stem = x.name.replace(/\.json$/, '');
+  for (const suf of ['_글자만.vcf', '_확인결과.txt']) { try { await fileOf(stem + suf); files.push(stem + suf); } catch(e){} }
+  const d = JSON.parse(await (await fileOf(x.name)).text()); const shas = new Set();
+  for (const t of Object.values(d.tables || {})) for (const row of t) for (const v of Object.values(row)) if (typeof v === 'string' && v.startsWith('b:')) shas.add(v.split(':')[1]);
+  for (const p of d.display_photos || []) shas.add(p.sha256);
+  const pm = await photoMap(); let missing = 0;
+  for (const s of shas) { const h = pm.get(s); if (h) files.push(PHOTO + '/' + h.name); else missing++; }
+  let done = 0, bad = [];
+  for (const p of files) {
+    if (stop) break;
+    try {
+      const buf = await (await fileOf(p)).arrayBuffer(); const s = await sha(buf);
+      const r = await fetch(phone() + '/put?k=' + encodeURIComponent(k) + '&p=' + encodeURIComponent(p) + '&sha=' + s, { method: 'POST', body: buf, headers: { 'Content-Type': 'application/octet-stream' } });
+      const j = await r.json(); if (!j.ok) throw new Error(j.err || '실패');
+    } catch(e) { bad.push(p + ': ' + e.message); }
+    done++; m.textContent = `휴대폰으로 보내는 중 ${done} / ${files.length}`;
+  }
+  m.innerHTML = bad.length || missing ? `<span class="bad">✖ 보내지 못한 것 ${bad.length}개, PC에 없는 사진 ${missing}장</span><br>${bad.slice(0,20).map(esc).join('<br>')}`
+    : `<span class="ok">✔ ${files.length}개 파일을 휴대폰으로 보냈고, 휴대폰이 지문값으로 확인했습니다. 이제 휴대폰 앱의 [백업·되살리기] 탭에서 이 백업의 [지워진 연락처 되살리기]를 누르세요.</span>`;
+}
+
+// ---------- 시작 ----------
+(async () => {
+  try { $('#addr').value = localStorage.getItem('addr') || ''; } catch(e){}
+  root = await loadRoot(); await showRoot(); listBackups();
+  try { const j = await (await fetch('https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/app/version.json?t=' + Date.now())).json();
+    const n = v => { const p = String(v).split('.'); return (+p[0]||0) * 1000 + (+p[1]||0); };
+    if (j.pc && n(j.pc) > n(VER)) $('#upd').textContent = `새 판 Ver${j.pc}이 있습니다. 프로그램을 닫았다가 바탕화면 아이콘으로 다시 켜면 저절로 바뀝니다.`;
+  } catch(e){}
+})();
+</script>
+</body></html>
