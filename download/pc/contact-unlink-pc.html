@@ -25,42 +25,44 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 .log{max-height:180px;overflow:auto;font-size:13px;white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
 .bk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:8px 0}
 .st{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:17px}.st b{flex:1}
-.dot{width:24px;height:24px;border-radius:50%;flex:none;background:#e53935}.dot.on{background:#00e5ff;box-shadow:0 0 14px #00e5ff,0 0 4px #00b8d4}.dot.wait{background:var(--line)}
+.dot{width:24px;height:24px;border-radius:50%;flex:none;background:#e53935}.dot.on{background:#22c55e;box-shadow:0 0 8px #22c55e}.dot.wait{background:var(--line)}
 #big{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9}#big img{max-width:92vw;max-height:92vh}
 </style></head><body>
 <header><span id="ver">Ver0.61</span><h1>묶인 연락처 풀기 PC판</h1><span class="sub" id="upd"></span></header>
 <main>
 <div class="card">
   <b>1. PC 보관 폴더</b>
-  <div class="sub">휴대폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 휴대폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
+  <div class="sub">스마트폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 스마트폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
   <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()">이 폴더 다시 쓰기 허락</button></div>
 </div>
 
 <div class="card">
-  <b>2. 휴대폰 → PC (와이파이)</b>
-  <div class="sub">휴대폰 앱을 켜 두고 아래 큰 단추만 누르세요. PC가 같은 와이파이에서 휴대폰을 저절로 찾습니다.
-    처음 한 번만 휴대폰 앱 [백업·되살리기] → [📶 와이파이로 PC와 주고받기]에 나오는 번호 6자리를 물어보고, 그다음부터는 번호 없이 바로 받습니다.</div>
-  <div class="row"><button class="pri" id="bGet" style="font-size:18px;padding:12px 22px" onclick="wifiGet()">📶 휴대폰에서 받기</button><button onclick="stopNow()">■ 멈춤</button><span id="phName" class="sub"></span></div>
+  <b>2. 스마트폰 → PC (와이파이)</b>
+  <div class="sub">스마트폰 앱을 켜 두고 아래 큰 단추만 누르세요. PC가 같은 와이파이에서 스마트폰을 저절로 찾습니다.
+    처음 한 번만 스마트폰 앱 [백업·되살리기] → [📶 와이파이로 PC와 주고받기]에 나오는 번호 6자리를 물어보고, 그다음부터는 번호 없이 바로 받습니다.</div>
+  <div class="row"><button class="pri" id="bGet" style="font-size:18px;padding:12px 22px" onclick="wifiGet()">📶 스마트폰에서 받기</button><button onclick="stopNow()">■ 멈춤</button><span id="phName" class="sub"></span></div>
   <div id="autoSt" class="sub" style="color:#1a7f37"></div>
   <details class="sub"><summary>못 찾을 때: 주소 직접 넣기</summary>주소 <input id="addr" placeholder="192.168.0.5:8765" size="22"> 번호 <input id="code" placeholder="6자리" size="8"> <button onclick="forgetPhone()">짝 다시 맺기</button></details>
   <div class="pbar"><i id="pBar"></i></div><div id="pMsg" class="sub"></div>
 </div>
 
 <div class="card" id="usbCard">
-  <b>3. 휴대폰 → PC (USB 선) 차례대로</b>
-  <div class="sub">불이 형광 파랑이면 된 것, 빨강이면 아직 안 된 것입니다. 위에서부터 차례로 파랗게 켜지면 마지막 단추만 누르면 됩니다.</div>
+  <b>3. 스마트폰 → PC (USB 선) 차례대로</b>
+  <div class="sub">불이 초록이면 된 것, 빨강이면 아직 안 된 것입니다. 위에서부터 차례로 초록으로 켜지면 마지막 단추만 누르면 됩니다.</div>
   <div class="usb">
     <div class="st" id="u0"></div>
     <div class="st" id="u1"></div>
     <div class="st" id="u2"></div>
     <div class="st" id="u3"></div>
     <div class="st" id="u4"></div>
+    <div class="st" id="u5"></div>
+    <div class="st" id="u6"></div>
   </div>
   <div class="pbar"><i id="uBar"></i></div><div id="uMsg" class="sub"></div>
   <details class="sub" style="margin-top:8px"><summary>PC 도우미 없이 손으로 하기(예전 방식)</summary>
   <ol>
-    <li>휴대폰을 USB 선으로 PC에 꽂고, 휴대폰 화면 위 알림에서 [USB 사용 목적] → [파일 전송]을 고릅니다.</li>
-    <li>PC의 파일 탐색기 → 내 PC → (휴대폰 이름) → 내장 메모리 → Download 로 들어갑니다.</li>
+    <li>스마트폰을 USB 선으로 PC에 꽂고, 스마트폰 화면 위 알림에서 [USB 사용 목적] → [파일 전송]을 고릅니다.</li>
+    <li>PC의 파일 탐색기 → 내 PC → (스마트폰 이름) → 내장 메모리 → Download 로 들어갑니다.</li>
     <li>"묶인연락처풀기" 폴더를 위 1번에서 고른 PC 보관 폴더 안으로 끌어다 놓아 복사합니다(사진이 많으면 시간이 걸립니다).</li>
     <li>다 복사되면 아래 단추를 누릅니다. 사진 하나하나를 지문값(SHA-256)으로 확인해, 한 바이트라도 다르거나 빠진 것을 알려 줍니다.</li>
   </ol></details>
@@ -69,9 +71,9 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </div>
 
 <div class="card">
-  <b>4. 백업 보기와 휴대폰으로 되돌려 보내기</b>
-  <div class="sub">보관 폴더에 있는 백업입니다. [보기]로 연락처를 확인하고, 휴대폰을 잃어버렸거나 새 휴대폰이면 새 휴대폰에 앱을 깔고 [휴대폰으로 보내기]를 누른 뒤 휴대폰 앱에서 [지워진 연락처 되살리기]를 누릅니다.</div>
-  <div class="sub">USB로 보낼 때: 보관 폴더 안의 "묶인연락처풀기" 폴더를 휴대폰 내장 메모리 → Download 안에 다른 이름(예: "PC에서")으로 복사하고, 휴대폰 앱의 [📁 PC에서 휴대폰에 복사해 둔 백업 폴더 불러오기]로 그 폴더를 고릅니다.</div>
+  <b>4. 백업 보기와 스마트폰으로 되돌려 보내기</b>
+  <div class="sub">보관 폴더에 있는 백업입니다. [보기]로 연락처를 확인하고, 스마트폰을 잃어버렸거나 새 스마트폰이면 새 스마트폰에 앱을 깔고 [스마트폰으로 보내기]를 누른 뒤 스마트폰 앱에서 [지워진 연락처 되살리기]를 누릅니다.</div>
+  <div class="sub">USB로 보낼 때: 보관 폴더 안의 "묶인연락처풀기" 폴더를 스마트폰 내장 메모리 → Download 안에 다른 이름(예: "PC에서")으로 복사하고, 스마트폰 앱의 [📁 PC에서 스마트폰에 복사해 둔 백업 폴더 불러오기]로 그 폴더를 고릅니다.</div>
   <div class="row"><button onclick="listBackups()">목록 새로 고침</button></div>
   <div id="bkList"></div>
 </div>
@@ -84,13 +86,13 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 
 <div class="card">
   <b>주소 나눠 주기</b>
-  <div class="sub">다른 사람이 이 프로그램을 쓰면 그 사람 휴대폰의 연락처만 다룹니다. 대표님 연락처에는 닿지 않습니다.</div>
+  <div class="sub">다른 사람이 이 프로그램을 쓰면 그 사람 스마트폰의 연락처만 다룹니다. 대표님 연락처에는 닿지 않습니다.</div>
   <div class="row"><button onclick="copyLink()">주소 복사</button><button onclick="copyLink();location.href='kakaotalk://'">카카오톡으로 (주소 복사 후 열기)</button><button onclick="location.href='mailto:?subject='+encodeURIComponent('묶인 연락처 풀기')+'&body='+encodeURIComponent(LINK)">메일로</button></div>
 </div>
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.62';
+const VER = '0.71';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -137,10 +139,10 @@ async function writeFile(path, buf){
   return h;
 }
 
-// ---------- 와이파이: 휴대폰 → PC ----------
+// ---------- 와이파이: 스마트폰 → PC ----------
 function prog(done, total, msg){ $('#pBar').style.width = (total ? done * 100 / total : 0).toFixed(1) + '%'; $('#pMsg').textContent = msg; }
 function stopNow(){ stop = true; }
-// Ver0.56: 휴대폰을 저절로 찾고(같은 와이파이), 처음 한 번만 번호로 짝을 맺은 뒤 오래 쓰는 열쇠로 받는다. 파일 수백 개를 연결 한 번에 받아 빠르다
+// Ver0.56: 스마트폰을 저절로 찾고(같은 와이파이), 처음 한 번만 번호로 짝을 맺은 뒤 오래 쓰는 열쇠로 받는다. 파일 수백 개를 연결 한 번에 받아 빠르다
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) || ''; if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch(e){ return ''; } };
 function auth(){ const t = ls('tok'); if (t) return 't=' + t; return 'k=' + encodeURIComponent($('#code').value.trim()); }
 async function hello(host, ms){ const c = new AbortController(); const tm = setTimeout(() => c.abort(), ms);
@@ -155,7 +157,7 @@ async function findPhone(){
   ['192.168.0','192.168.1','192.168.219','172.30.1','192.168.35','192.168.25','192.168.10','192.168.100','192.168.2','10.0.0','10.0.1','192.168.45','192.168.43','192.168.50','192.168.200'].forEach(ap);
   for (const p of pre) {
     if (stop) return null;
-    prog(0, 1, `같은 와이파이에서 휴대폰을 찾는 중… (${p}.*)`);
+    prog(0, 1, `같은 와이파이에서 스마트폰을 찾는 중… (${p}.*)`);
     const hosts = []; for (let i = 1; i < 255; i++) hosts.push(p + '.' + i + ':8765');
     let found = null;
     await Promise.all(Array.from({ length: 64 }, async () => { while (hosts.length && !found) { const h = hosts.shift(); const j = await hello(h, 1200); if (j && !found) found = [h, j]; } }));
@@ -168,14 +170,14 @@ let PH = '';
 function phone(){ return 'http://' + PH; }
 async function connect(){
   const f = await findPhone();
-  if (!f) throw new Error('같은 와이파이에서 휴대폰을 찾지 못했습니다. 휴대폰에서 이 앱을 켜 두었는지, PC와 휴대폰이 같은 와이파이(공유기)인지 확인해 주세요. 그래도 안 되면 아래 [못 찾을 때]에 휴대폰 화면의 주소를 넣어 주세요.');
-  PH = f[0]; ls('addr', PH); $('#addr').value = PH; $('#phName').textContent = '찾은 휴대폰: ' + (f[1].name || PH) + ' (Ver' + f[1].ver + ')';
+  if (!f) throw new Error('같은 와이파이에서 스마트폰을 찾지 못했습니다. 스마트폰에서 이 앱을 켜 두었는지, PC와 스마트폰이 같은 와이파이(공유기)인지 확인해 주세요. 그래도 안 되면 아래 [못 찾을 때]에 스마트폰 화면의 주소를 넣어 주세요.');
+  PH = f[0]; ls('addr', PH); $('#addr').value = PH; $('#phName').textContent = '찾은 스마트폰: ' + (f[1].name || PH) + ' (Ver' + f[1].ver + ')';
   if (!f[1].known || !ls('tok')) {
     let k = $('#code').value.trim();
-    if (!k) k = (prompt('휴대폰 앱 [백업·되살리기] → [📶 와이파이로 PC와 주고받기]를 누르면 나오는 번호 6자리를 넣어 주세요. (처음 한 번만)') || '').trim();
+    if (!k) k = (prompt('스마트폰 앱 [백업·되살리기] → [📶 와이파이로 PC와 주고받기]를 누르면 나오는 번호 6자리를 넣어 주세요. (처음 한 번만)') || '').trim();
     if (!k) throw new Error('번호를 넣지 않아 멈췄습니다.');
     const r = await fetch(phone() + '/pair?k=' + encodeURIComponent(k));
-    if (r.status === 403) throw new Error('번호가 맞지 않습니다. 휴대폰 화면의 번호를 다시 확인해 주세요. (휴대폰에서 [와이파이로 PC와 주고받기] 화면이 열려 있어야 합니다)');
+    if (r.status === 403) throw new Error('번호가 맞지 않습니다. 스마트폰 화면의 번호를 다시 확인해 주세요. (스마트폰에서 [와이파이로 PC와 주고받기] 화면이 열려 있어야 합니다)');
     const j = await r.json(); if (!j.t) throw new Error('짝을 맺지 못했습니다'); ls('tok', j.t);
   }
 }
@@ -199,13 +201,13 @@ async function pack(list, onFile){
 }
 async function wifiGet(){
   if (!await need()) return;
-  stop = false; $('#bGet').disabled = true; prog(0, 1, '휴대폰을 찾는 중…');
+  stop = false; $('#bGet').disabled = true; prog(0, 1, '스마트폰을 찾는 중…');
   try {
     await connect();
-    prog(0, 1, '휴대폰에서 파일 목록과 지문값을 받는 중…');
+    prog(0, 1, '스마트폰에서 파일 목록과 지문값을 받는 중…');
     const r = await fetch(phone() + '/list?' + auth());
-    if (r.status === 403) { ls('tok', null); throw new Error('휴대폰이 이 PC를 모릅니다. 다시 누르면 번호를 한 번 물어봅니다.'); }
-    if (!r.ok) throw new Error('휴대폰이 응답하지 않습니다 (' + r.status + ')');
+    if (r.status === 403) { ls('tok', null); throw new Error('스마트폰이 이 PC를 모릅니다. 다시 누르면 번호를 한 번 물어봅니다.'); }
+    if (!r.ok) throw new Error('스마트폰이 응답하지 않습니다 (' + r.status + ')');
     const list = await r.json(); let need = [], have = 0, bytes = 0, chk = 0;
     for (const f of list) {
       let skip = false;
@@ -226,8 +228,8 @@ async function wifiGet(){
           await pack(bt, async (p, buf) => {
             const f = byP.get(p);
             try {
-              if (!buf) throw new Error('휴대폰에 없습니다');
-              if (buf.byteLength !== f.size || await sha(buf) !== f.sha) throw new Error('받은 바이트가 휴대폰 원본과 다릅니다');
+              if (!buf) throw new Error('스마트폰에 없습니다');
+              if (buf.byteLength !== f.size || await sha(buf) !== f.sha) throw new Error('받은 바이트가 스마트폰 원본과 다릅니다');
               await writeFile(f.p, buf);
               const back = await (await fileOf(f.p)).arrayBuffer(); // PC 디스크에 쓴 것을 다시 읽어 한 번 더 확인
               if (await sha(back) !== f.sha) throw new Error('PC에 쓴 뒤 확인 실패');
@@ -243,27 +245,27 @@ async function wifiGet(){
     await Promise.all([work(), work()]); saveBad();
     if (stop) prog(done, total, `멈췄습니다. ${done}개까지 받았습니다. 다시 누르면 남은 것만 이어서 받습니다.`);
     else $('#pMsg').innerHTML = bad.length ? `<span class="bad">✖ ${bad.length}건 문제가 있었습니다. 다시 누르면 못 받은 것만 다시 받습니다.</span><br>${bad.slice(0,20).map(esc).join('<br>')}`
-      : `<span class="ok">✔ 끝났습니다. 휴대폰 백업 ${list.length}개 파일이 PC에 바이트 그대로 있습니다(새로 받은 것 ${total}개, ${mb(bytes)}). 모두 지문값으로 확인했습니다.</span>`;
+      : `<span class="ok">✔ 끝났습니다. 스마트폰 백업 ${list.length}개 파일이 PC에 바이트 그대로 있습니다(새로 받은 것 ${total}개, ${mb(bytes)}). 모두 지문값으로 확인했습니다.</span>`;
     listBackups();
     if (!stop && !bad.length) try { await fetch(phone() + '/done?' + auth() + '&n=' + total); } catch(e){}
   } catch(e) { $('#pMsg').innerHTML = `<span class="bad">✖ ${esc(e.message)}</span>`; }
   $('#bGet').disabled = false; getting = false;
 }
-// Ver0.57: 이 PC판을 켜 두면, 휴대폰에서 [💻 PC로 바로 백업]을 누를 때 저절로 받아 간다(15초마다 휴대폰을 살핌)
+// Ver0.57: 이 PC판을 켜 두면, 스마트폰에서 [💻 PC로 바로 백업]을 누를 때 저절로 받아 간다(15초마다 스마트폰을 살핌)
 let getting = false;
 setInterval(async () => {
   if (getting || !root || !ls('tok') || !ls('addr') || $('#bGet').disabled) return;
   let p = 'denied'; try { p = await root.queryPermission({mode:'readwrite'}); } catch(e){} if (p !== 'granted') return;
   const j = await hello(ls('addr'), 2000);
-  $('#autoSt').textContent = j ? `휴대폰(${j.name || ls('addr')}) 연결됨 · 휴대폰에서 [💻 PC로 바로 백업]을 누르면 저절로 받습니다` : '휴대폰을 기다리는 중 (휴대폰 앱이 켜져 있어야 합니다)';
-  if (j && j.known && j.want) { getting = true; $('#autoSt').textContent = '휴대폰이 백업을 보내 달라고 해서 받는 중입니다…'; wifiGet(); }
+  $('#autoSt').textContent = j ? `스마트폰(${j.name || ls('addr')}) 연결됨 · 스마트폰에서 [💻 PC로 바로 백업]을 누르면 저절로 받습니다` : '스마트폰을 기다리는 중 (스마트폰 앱이 켜져 있어야 합니다)';
+  if (j && j.known && j.want) { getting = true; $('#autoSt').textContent = '스마트폰이 백업을 보내 달라고 해서 받는 중입니다…'; wifiGet(); }
 }, 15000);
 
 // ---------- 보관 폴더 확인 (USB로 복사한 뒤) ----------
 async function* walk(d, pre){ for await (const [n, h] of d.entries()) { if (h.kind === 'directory') yield* walk(h, pre + n + '/'); else yield [pre + n, h]; } }
 async function verifyAll(){
   if (!await need()) return;
-  let b; try { b = await base(); } catch(e) { return $('#vMsg').innerHTML = '<span class="bad">보관 폴더 안에 "묶인연락처풀기" 폴더가 없습니다. 휴대폰의 Download/묶인연락처풀기 폴더를 통째로 보관 폴더 안에 복사해 주세요.</span>'; }
+  let b; try { b = await base(); } catch(e) { return $('#vMsg').innerHTML = '<span class="bad">보관 폴더 안에 "묶인연락처풀기" 폴더가 없습니다. 스마트폰의 Download/묶인연락처풀기 폴더를 통째로 보관 폴더 안에 복사해 주세요.</span>'; }
   const log = $('#vLog'); log.style.display = 'block'; log.textContent = ''; stop = false;
   const all = []; for await (const x of walk(b, '')) all.push(x);
   const photos = new Map(); let bad = 0, n = 0, bytes = 0;
@@ -291,7 +293,7 @@ async function verifyAll(){
   }
   saveBad();
   $('#vMsg').innerHTML = stop ? '멈췄습니다.' : (bad || miss)
-    ? `<span class="bad">✖ 문제가 있습니다: 바이트가 다른 파일 ${bad}개, PC에 없는 사진 ${miss}개.${!bad ? ' 휴대폰의 사진이 망가진 것이 아니라 PC로 복사가 덜 된 것입니다.' : ''} 위 2번 [📶 휴대폰에서 받기]를 누르면 빠진 것만 골라 받습니다.</span>`
+    ? `<span class="bad">✖ 문제가 있습니다: 바이트가 다른 파일 ${bad}개, PC에 없는 사진 ${miss}개.${!bad ? ' 스마트폰의 사진이 망가진 것이 아니라 PC로 복사가 덜 된 것입니다.' : ''} 위 2번 [📶 스마트폰에서 받기]를 누르면 빠진 것만 골라 받습니다.</span>`
     : `<span class="ok">✔ 모두 맞습니다. 사진 ${photos.size}장(${mb(bytes)})이 이름의 지문값과 바이트까지 같고, 백업 ${jsons}개가 쓰는 사진 ${refs}곳이 모두 있습니다.</span>`;
   listBackups();
 }
@@ -303,9 +305,10 @@ async function listBackups(){
   let b; try { if ((await root.queryPermission({mode:'readwrite'})) !== 'granted') return; b = await base(); } catch(x) { e.innerHTML = '<div class="sub">아직 보관한 백업이 없습니다.</div>'; return; }
   const l = [];
   for await (const [n, h] of b.entries()) if (h.kind === 'file' && /^연락처백업_.*\.json$/.test(n)) { const f = await h.getFile(); l.push({ name: n, size: f.size, t: f.lastModified }); }
-  l.sort((x, y) => y.name.localeCompare(x.name)); backups = l;
+  const st = n => (n.match(/\d{8}_\d{6}/) || [''])[0]; l.sort((x, y) => st(y.name).localeCompare(st(x.name)) || y.t - x.t); backups = l; // Ver0.69: 만든 시각 순(최근 먼저)
   e.innerHTML = backups.length ? backups.map((x, i) => `<div class="bk"><b style="flex:1">${esc(x.name)}</b><span class="sub">${mb(x.size)}</span>
-    <button onclick="openBackup(${i})">보기</button><button class="pri" onclick="sendBackup(${i})">휴대폰으로 보내기 (와이파이)</button></div>`).join('') + '<div id="sMsg" class="sub"></div>'
+    <button onclick="openBackup(${i})">보기</button><button class="pri" onclick="sendBackup(${i})">스마트폰으로 보내기 (와이파이)</button><button style="color:var(--red)" onclick="delBackup(${i})">지우기</button></div>`).join('')
+    + `<div class="row">${backups.length > 3 ? `<button style="color:var(--red)" onclick="keepRecent(3)">최근 3개만 남기고 지우기 (${backups.length - 3}개 지움)</button>` : ''}<button onclick="cleanPhotos()">안 쓰는 사진 정리</button></div>` + '<div id="sMsg" class="sub"></div>'
     : '<div class="sub">아직 보관한 백업이 없습니다.</div>';
 }
 const val = v => v == null ? '' : String(v).slice(2);
@@ -319,7 +322,7 @@ async function openBackup(i){
   const x = backups[i]; $('#viewCard').style.display = 'block'; $('#viewTitle').textContent = '연락처 보기: ' + x.name; $('#view').textContent = '읽는 중…';
   const d = JSON.parse(await (await fileOf(x.name)).text());
   const raws = new Map();
-  for (const r of d.tables.raw_contacts || []) raws.set(val(r._id), { id: val(r._id), ac: val(r.account_type) ? val(r.account_type) + ' ' + val(r.account_name) : '휴대폰', name: '', phones: [], emails: [], notes: [], thumb: null, full: null });
+  for (const r of d.tables.raw_contacts || []) raws.set(val(r._id), { id: val(r._id), ac: val(r.account_type) ? val(r.account_type) + ' ' + val(r.account_name) : '스마트폰', name: '', phones: [], emails: [], notes: [], thumb: null, full: null });
   for (const r of d.tables.data || []) {
     const o = raws.get(val(r.raw_contact_id)); if (!o) continue; const mt = val(r.mimetype);
     if (mt.endsWith('/name')) o.name = val(r.data1); else if (mt.endsWith('/phone_v2')) o.phones.push(val(r.data1)); else if (mt.endsWith('/email_v2')) o.emails.push(val(r.data1));
@@ -347,11 +350,11 @@ async function drawView(){
     im.onclick = async () => { const f = await imgUrl(o.full ? 'b:' + o.full : o.thumb); if (f) { $('#bigImg').src = f; $('#big').style.display = 'flex'; } }; });
 }
 
-// ---------- PC → 휴대폰 (와이파이) ----------
+// ---------- PC → 스마트폰 (와이파이) ----------
 async function sendBackup(i){
   if (!await need()) return;
   const x = backups[i], m = $('#sMsg'); stop = false;
-  try { m.textContent = '휴대폰을 찾는 중…'; await connect(); } catch(e) { m.innerHTML = `<span class="bad">✖ ${esc(e.message)}</span>`; return; }
+  try { m.textContent = '스마트폰을 찾는 중…'; await connect(); } catch(e) { m.innerHTML = `<span class="bad">✖ ${esc(e.message)}</span>`; return; }
   const files = [x.name]; const stem = x.name.replace(/\.json$/, '');
   for (const suf of ['_글자만.vcf', '_확인결과.txt']) { try { await fileOf(stem + suf); files.push(stem + suf); } catch(e){} }
   const d = JSON.parse(await (await fileOf(x.name)).text()); const shas = new Set();
@@ -367,10 +370,10 @@ async function sendBackup(i){
       const r = await fetch(phone() + '/put?' + auth() + '&p=' + encodeURIComponent(p) + '&sha=' + s, { method: 'POST', body: buf, headers: { 'Content-Type': 'application/octet-stream' } });
       const j = await r.json(); if (!j.ok) throw new Error(j.err || '실패');
     } catch(e) { bad.push(p + ': ' + e.message); }
-    done++; m.textContent = `휴대폰으로 보내는 중 ${done} / ${files.length}`;
+    done++; m.textContent = `스마트폰으로 보내는 중 ${done} / ${files.length}`;
   }
   m.innerHTML = bad.length || missing ? `<span class="bad">✖ 보내지 못한 것 ${bad.length}개, PC에 없는 사진 ${missing}장</span><br>${bad.slice(0,20).map(esc).join('<br>')}`
-    : `<span class="ok">✔ ${files.length}개 파일을 휴대폰으로 보냈고, 휴대폰이 지문값으로 확인했습니다. 이제 휴대폰 앱의 [백업·되살리기] 탭에서 이 백업의 [지워진 연락처 되살리기]를 누르세요.</span>`;
+    : `<span class="ok">✔ ${files.length}개 파일을 스마트폰으로 보냈고, 스마트폰이 지문값으로 확인했습니다. 이제 스마트폰 앱의 [백업·되살리기] 탭에서 이 백업의 [지워진 연락처 되살리기]를 누르세요.</span>`;
 }
 
 // ---------- 시작 ----------
@@ -383,7 +386,7 @@ async function sendBackup(i){
   } catch(e){}
 })();
 
-// ---------- Ver0.61: USB 차례대로 (PC 도우미가 휴대폰을 보고, 지난번 보관 위치를 기억해 새 파일만 복사) ----------
+// ---------- Ver0.61: USB 차례대로 (PC 도우미가 스마트폰을 보고, 지난번 보관 위치를 기억해 새 파일만 복사) ----------
 const HELP = 'http://localhost:8766';
 let U = null, uKeep = false, uAsked = false;
 function step(id, state, txt, btn){ $('#' + id).innerHTML = `<span class="dot ${state === true ? 'on' : state === null ? 'wait' : ''}"></span><b>${txt}</b>${btn || ''}`; }
@@ -392,21 +395,74 @@ async function usbTick(){
   try { U = await hget('/usb?t=' + Date.now()); } catch(e) { U = null; }
   if (!U) {
     step('u0', false, 'PC 도우미: 꺼져 있음. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 이 프로그램을 켜면 저절로 켜집니다');
-    for (const k of ['u1','u2','u3','u4']) step(k, null, {u1:'① USB 선을 꽂습니다',u2:'② 휴대폰에서 [파일 전송]을 고릅니다',u3:'③ PC 보관 위치 확인',u4:'④ 백업 시작'}[k]);
+    for (const k of ['u1','u2','u3','u4']) step(k, null, {u1:'① USB 선을 꽂습니다',u2:'② 스마트폰에서 [파일 전송]을 고릅니다',u3:'③ PC 보관 위치 확인',u4:'④ 백업 시작'}[k]);
     return;
   }
   step('u0', true, 'PC 도우미: 켜짐');
-  step('u1', !!U.phone, U.phone ? `① USB 연결됨: ${esc(U.phone)}` : '① USB 연결 안 됨: 휴대폰을 USB 선으로 PC에 꽂아 주세요');
-  step('u2', U.phone ? !!U.mtp : null, !U.phone ? '② 파일 전송 (선을 꽂으면 확인합니다)' : U.mtp ? (U.found ? '② 파일 전송 켜짐: 휴대폰 Download/묶인연락처풀기 폴더가 보입니다' : '② 파일 전송 켜짐, 그런데 휴대폰 Download 안에 "묶인연락처풀기" 폴더가 없습니다. 휴대폰 앱에서 먼저 백업해 주세요') : '② 파일 전송 꺼짐: 휴대폰 화면 위 알림에서 [USB 파일 전송] → [파일 전송]을 골라 주세요');
+  step('u1', !!U.phone, U.phone ? `① USB 연결됨: ${esc(U.phone)}` : '① USB 연결 안 됨: 스마트폰을 USB 선으로 PC에 꽂아 주세요');
+  step('u2', U.phone ? !!U.mtp : null, !U.phone ? '② 파일 전송 (선을 꽂으면 확인합니다)' : U.mtp ? (U.found ? '② 파일 전송 켜짐: 스마트폰 Download/묶인연락처풀기 폴더가 보입니다' : '② 파일 전송 켜짐, 그런데 스마트폰 Download 안에 "묶인연락처풀기" 폴더가 없습니다. 스마트폰 앱에서 먼저 백업해 주세요') : '② 파일 전송 꺼짐: 스마트폰 화면 위 알림에서 [USB 파일 전송] → [파일 전송]을 골라 주세요');
   step('u3', uKeep ? true : null, uKeep ? `③ PC 보관 위치: ${esc(U.target)}` : `③ PC 보관 위치를 지난번 그대로 하시겠습니까?<br><span class="sub">${esc(U.target)}${U.targetNew ? ' (처음이라 문서 안에 새로 만들 곳입니다)' : ''}</span>`,
     uKeep ? `<button onclick="uKeep=false;usbTick()">바꾸기</button>` : `<button class="pri" onclick="uKeep=true;usbTick()">예, 그대로</button><button onclick="usbPick()">바꾸기</button>`);
   const ready = U.phone && U.mtp && U.found && uKeep;
-  if (U.busy) step('u4', null, '④ 백업하는 중… (휴대폰을 뽑지 마세요)', `<button onclick="hget('/stop',true)">■ 멈춤</button>`);
+  if (U.busy) step('u4', null, '④ 백업하는 중… (스마트폰을 뽑지 마세요)', `<button onclick="hget('/stop',true)">■ 멈춤</button>`);
   else step('u4', U.last && U.last.ok ? true : ready ? null : false, U.last && U.last.ok ? `④ 끝났습니다: ${esc(U.last.msg)}` : '④ 백업을 시작하시겠습니까?', `<button class="pri" ${ready ? '' : 'disabled'} onclick="usbGo()">예, 시작</button>`);
+  // Ver0.71: ⑤ 비교 결과, ⑥ 복구하는 방법
+  step('u5', U.last ? !!U.last.ok : null, U.last ? (U.last.ok ? '⑤ ' + esc(U.last.msg) : '⑤ ' + esc(U.last.msg)) : U.busy ? '⑤ 복사가 끝나면 스마트폰과 PC를 하나하나 비교합니다' : '⑤ 비교 결과');
+  step('u6', U.last && U.last.ok ? true : null, U.last && U.last.ok ? '⑥ 복구하려면: 아래 4번 목록에서 그 백업의 [스마트폰으로 보내기] → 스마트폰 앱 [백업·되살리기] → [지워진 연락처 되살리기]' : '⑥ 복구 방법 (백업이 끝나면 안내합니다)');
+  usbTell();
   if (U.busy || U.last) { $('#uBar').style.width = (U.total ? U.done * 100 / U.total : 0).toFixed(1) + '%'; $('#uMsg').innerHTML = U.busy ? esc(U.msg) : U.last ? `<span class="${U.last.ok ? 'ok' : 'bad'}">${U.last.ok ? '✔' : '✖'} ${esc(U.last.msg)}</span>` : ''; }
 }
 async function usbPick(){ try { const r = await hget('/pick', true); if (r.target) uKeep = true; } catch(e){} usbTick(); }
-async function usbGo(){ if (!confirm('휴대폰 Download/묶인연락처풀기 폴더에서 PC에 없는 파일만 복사하고, 사진은 지문값으로 확인합니다.\nPC 보관 위치: ' + U.target + '\n\n백업을 시작하시겠습니까?')) return; try { await hget('/copy', true); } catch(e) { alert('PC 도우미에 닿지 못했습니다: ' + e.message); } usbTick(); }
+async function usbGo(){ if (!confirm('스마트폰 Download/묶인연락처풀기 폴더에서 PC에 없는 파일만 복사하고, 사진은 지문값으로 확인합니다.\nPC 보관 위치: ' + U.target + '\n\n백업을 시작하시겠습니까?')) return; try { await hget('/copy', true); } catch(e) { alert('PC 도우미에 닿지 못했습니다: ' + e.message); } usbTick(); }
 usbTick(); setInterval(usbTick, 2000);
+
+// ---------- Ver0.69: PC 보관 폴더의 백업 지우기 ----------
+// 그 백업 파일(.json)과 같이 만든 _글자만.vcf, _확인결과.txt 만 지운다. 사진원본 파일은 여러 백업이 같이 쓰므로 지우지 않는다. 마지막 하나는 남긴다.
+async function removeOne(name){
+  const b = await base(); const stem = name.replace(/\.json$/, '');
+  for (const n of [name, stem + '_글자만.vcf', stem + '_확인결과.txt']) { try { await b.removeEntry(n); } catch(e){} }
+}
+async function delBackup(i){
+  if (!await need()) return; const x = backups[i]; if (!x) return;
+  if (backups.length <= 1) return alert('마지막 백업 하나는 지울 수 없습니다. 새 백업을 받은 뒤에 지워 주세요.');
+  if (!confirm(`이 백업을 PC에서 지웁니다.\n${x.name}\n\n같이 만든 글자만 vcf와 확인결과 txt도 지웁니다. 원본 사진 파일은 다른 백업이 함께 쓰므로 그대로 둡니다. 스마트폰에 있는 백업과 연락처는 건드리지 않습니다.\n\n지울까요?`)) return;
+  await removeOne(x.name); await listBackups();
+}
+async function keepRecent(k){
+  if (!await need()) return; const del = backups.slice(k); if (!del.length) return;
+  if (!confirm(`가장 최근 백업 ${k}개만 남기고, 오래된 백업 ${del.length}개를 PC에서 지웁니다.\n남는 것: ${backups.slice(0, k).map(x => x.name).join(', ')}\n\n원본 사진 파일은 그대로 둡니다. 스마트폰 쪽은 건드리지 않습니다. 지울까요?`)) return;
+  for (const x of del) await removeOne(x.name);
+  await listBackups();
+}
+
+// Ver0.70: 남은 백업 어느 것도 쓰지 않는 사진원본 파일만 지운다. 백업 파일을 하나라도 못 읽으면 아무것도 지우지 않는다
+async function cleanPhotos(){
+  if (!await need()) return; const msg = $('#sMsg') || $('#bkList');
+  const used = new Set(); let b; try { b = await base(); } catch(e) { return alert('보관 폴더 안에 백업이 없습니다.'); }
+  msg.textContent = '백업들이 쓰는 사진을 모으는 중…';
+  for await (const [n, h] of b.entries()) {
+    if (h.kind !== 'file' || !/^연락처백업_.*\.json$/.test(n)) continue;
+    let d; try { d = JSON.parse(await (await h.getFile()).text()); } catch(e) { msg.textContent = ''; return alert('백업 파일을 읽지 못해 정리를 멈췄습니다(아무것도 지우지 않음): ' + n); }
+    for (const t of Object.values(d.tables || {})) for (const row of t) for (const v of Object.values(row)) if (typeof v === 'string' && v.startsWith('b:')) used.add(v.split(':')[1]);
+    for (const x of d.display_photos || []) used.add(x.sha256);
+  }
+  let pd; try { pd = await dirOf(PHOTO); } catch(e) { msg.textContent = ''; return alert('사진원본 폴더가 없습니다.'); }
+  const gone = []; let bytes = 0;
+  for await (const [n, h] of pd.entries()) { const s = nameSha(n); if (h.kind === 'file' && s && !used.has(s)) { gone.push(n); bytes += (await h.getFile()).size; } }
+  msg.textContent = '';
+  if (!gone.length) return alert('안 쓰는 사진이 없습니다. 모든 사진을 남은 백업이 쓰고 있습니다.');
+  if (!confirm(`남은 백업 어느 것도 쓰지 않는 사진 ${gone.length}장(${mb(bytes)})을 PC 보관 폴더에서 지웁니다.\n남은 백업이 쓰는 사진은 한 장도 지우지 않습니다. 스마트폰 쪽은 건드리지 않습니다.\n\n지울까요?`)) return;
+  let k = 0; for (const n of gone) { try { await pd.removeEntry(n); k++; } catch(e){} }
+  alert(`안 쓰는 사진 ${k}장(${mb(bytes)})을 지웠습니다.`); await listBackups();
+}
+
+// Ver0.71: 와이파이로 짝을 맺은 스마트폰이 있으면, USB 진행 상황을 스마트폰 화면에도 보낸다
+let usbTellAt = 0;
+function usbTell(){
+  const addr = ls('addr'), tok = ls('tok'); if (!addr || !tok || !U || Date.now() - usbTellAt < 2000) return; usbTellAt = Date.now();
+  const st = { helper: true, keep: uKeep, busy: !!U.busy, done: U.done || 0, total: U.total || 0, msg: U.msg || '', last: U.last || null, target: U.target || '' };
+  const c = new AbortController(); setTimeout(() => c.abort(), 1500);
+  fetch('http://' + addr + '/usbst?t=' + encodeURIComponent(tok) + '&j=' + encodeURIComponent(JSON.stringify(st)), { signal: c.signal }).catch(() => {});
+}
 </script>
 </body></html>
