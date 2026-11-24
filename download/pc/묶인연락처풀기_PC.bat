@@ -50,6 +50,12 @@ $cands = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$e
 $b = $cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if ($b) { Start-Process -FilePath $b -ArgumentList "--app=$url" } else { Start-Process $html }
 # Ver0.61: USB를 살피는 PC 도우미를 숨은 창으로 따로 켠다(이 창은 바로 닫힘)
+# Ver0.73: 예전 판 도우미가 아직 돌고 있으면(새 기능이 없음) 끄고 새 도우미로 바꾼다. USB 복사 중이면 그대로 둔다.
+try {
+  $sfx = Join-Path $D 'usb_status.json'; $busy = $false
+  if ((Test-Path $sfx) -and ((Get-Date) - (Get-Item $sfx).LastWriteTime).TotalMinutes -lt 2) { $busy = [bool]((Get-Content $sfx -Raw -Encoding UTF8 | ConvertFrom-Json).busy) }
+  if (-not $busy) { Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like '*HELP==*' -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force } }
+} catch { }
 $hc = "`$s=[IO.File]::ReadAllText('$bat',[Text.Encoding]::UTF8); `$m='#=='+'HELP=='; iex `$s.Substring(`$s.LastIndexOf(`$m)+`$m.Length)"
 Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-Command',$hc)
 exit
@@ -149,6 +155,27 @@ while ($L.IsListening) {
         $job = Start-Job -ScriptBlock $copy -ArgumentList $T, $sf, $finder.ToString()
       }
       Reply $ctx @{ ok = $true }
+    } elseif ($path -eq '/open') {
+      # Ver0.73: 보관 폴더를 윈도우 탐색기로 바로 연다. u=1 이면 USB 보관 위치, 아니면 프로그램 창이 고른 폴더(표시 파일 m 로 찾음).
+      $q = $ctx.Request.QueryString; $dir = ''
+      if ($q['u']) { $dir = Target; New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+      else {
+        $m = "$($q['m'])"; $rf = Join-Path $D 'root_path.txt'
+        if ($m -match '^_보관폴더표시_[a-z0-9]+\.txt$') {
+          if (Test-Path $rf) { $c = (Get-Content $rf -Raw -Encoding UTF8).Trim(); if ($c -and (Test-Path -LiteralPath (Join-Path $c $m))) { $dir = $c } }
+          if (-not $dir) {
+            $roots = @([Environment]::GetFolderPath('UserProfile'), [Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop')) + @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -and $_.Free -ne $null } | ForEach-Object { $_.Root })
+            foreach ($r0 in ($roots | Select-Object -Unique)) {
+              $hit = Get-ChildItem -LiteralPath $r0 -Filter $m -File -Recurse -Depth 5 -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($hit) { $dir = $hit.DirectoryName; [IO.File]::WriteAllText($rf, $dir, [Text.Encoding]::UTF8); break }
+            }
+          }
+        }
+      }
+      if ($dir -and (Test-Path -LiteralPath $dir)) {
+        $in = Join-Path $dir '묶인연락처풀기'; if (Test-Path -LiteralPath $in) { $dir = $in }   # 백업이 실제로 든 안쪽 폴더를 연다
+        Start-Process explorer.exe -ArgumentList ('"' + $dir + '"'); Reply $ctx @{ ok = $true; path = $dir }
+      } else { Reply $ctx @{ ok = $false; why = 'notfound' } }
     } elseif ($path -eq '/stop') { New-Item -ItemType File -Force -Path (Join-Path (Target) '.stop') | Out-Null; Reply $ctx @{ ok = $true }
     } else { Reply $ctx @{ ok = $false } }
   } catch { try { Reply $ctx @{ ok = $false; err = "$_" } } catch { } }

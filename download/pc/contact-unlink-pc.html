@@ -33,7 +33,8 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 <div class="card">
   <b>1. PC 보관 폴더</b>
   <div class="sub">스마트폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 스마트폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
-  <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()">이 폴더 다시 쓰기 허락</button></div>
+  <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()">이 폴더 다시 쓰기 허락</button><button id="openRoot" onclick="openRoot()">📂 보관 폴더 열기</button></div>
+  <div id="openMsg" class="sub" style="display:none"></div>
 </div>
 
 <div class="card">
@@ -43,6 +44,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
   <div class="row"><button class="pri" id="bGet" style="font-size:18px;padding:12px 22px" onclick="wifiGet()">📶 스마트폰에서 받기</button><button onclick="stopNow()">■ 멈춤</button><span id="phName" class="sub"></span></div>
   <div id="autoSt" class="sub" style="color:#1a7f37"></div>
   <details class="sub"><summary>못 찾을 때: 주소 직접 넣기</summary>주소 <input id="addr" placeholder="192.168.0.5:8765" size="22"> 번호 <input id="code" placeholder="6자리" size="8"> <button onclick="forgetPhone()">짝 다시 맺기</button></details>
+  <div class="usb" id="wSteps"></div>
   <div class="pbar"><i id="pBar"></i></div><div id="pMsg" class="sub"></div>
 </div>
 
@@ -92,7 +94,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.71';
+const VER = '0.73';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -112,7 +114,33 @@ async function loadRoot(){ try { const d = await idb(); return await new Promise
 async function pickRoot(){
   if (!window.showDirectoryPicker) return alert('이 브라우저는 폴더 쓰기를 지원하지 않습니다. 엣지나 크롬으로 열어 주세요.');
   try { root = await showDirectoryPicker({ id: 'cu-root', mode: 'readwrite' }); } catch(e) { return; }
-  await saveRoot(root); showRoot(); listBackups();
+  await saveRoot(root); await markRoot(); showRoot(); listBackups();
+}
+// Ver0.73: 보관 폴더 열기. 브라우저는 폴더의 실제 경로를 알려 주지 않으므로, 고른 폴더에 작은 표시 파일을 하나 두고
+// PC 도우미(묶인연락처풀기_PC.bat)가 그 표시 파일을 찾아 윈도우 탐색기로 바로 연다. 연락처 백업 파일은 건드리지 않는다.
+async function markRoot(){
+  if (!root) return '';
+  let id = ''; try { id = localStorage.getItem('cu-mark') || ''; } catch(e){}
+  if (!id) { id = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('cu-mark', id); } catch(e){} }
+  const nm = '_보관폴더표시_' + id + '.txt';
+  try { await root.getFileHandle(nm); } catch(e) {
+    try { const w = await (await root.getFileHandle(nm, { create: true })).createWritable(); await w.write('묶인 연락처 풀기 PC판이 [보관 폴더 열기]로 이 폴더를 찾을 때 쓰는 표시 파일입니다. 지워도 백업에는 영향이 없습니다.\r\n'); await w.close(); } catch(e2) { return ''; }
+  }
+  return nm;
+}
+function openSay(t){ const m = $('#openMsg'); m.style.display = t ? '' : 'none'; m.textContent = t || ''; }
+async function openRoot(){
+  if (!root) return alert('먼저 [보관 폴더 고르기]로 폴더를 골라 주세요.');
+  const nm = await markRoot();
+  openSay('보관 폴더 "' + root.name + '"을(를) 찾아 탐색기로 여는 중입니다…');
+  try {
+    const r = await hget('/open?m=' + encodeURIComponent(nm) + '&n=' + encodeURIComponent(root.name), true);
+    if (r.ok) { openSay('탐색기에서 열었습니다: ' + r.path); setTimeout(() => openSay(''), 8000); return; }
+    if (r.why !== 'notfound') { openSay('PC 도우미가 예전 판이라 폴더 열기를 모릅니다. 이 창을 닫고 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 다시 켜 주세요. 새 도우미로 바뀌어 바로 열립니다.'); return; }
+    openSay('보관 폴더 "' + root.name + '"을(를) PC에서 찾지 못했습니다. [보관 폴더 고르기]로 다시 한 번 골라 주시면 다음부터는 바로 열립니다.');
+  } catch(e) {
+    openSay('PC 도우미가 꺼져 있어 탐색기를 열 수 없습니다. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 이 프로그램을 다시 켜 주세요(도우미도 함께 켜집니다). 그 전까지는 탐색기에서 "' + root.name + '" 폴더를 찾아 들어가시면 됩니다.');
+  }
 }
 async function regrant(){ if (root && (await root.requestPermission({mode:'readwrite'})) === 'granted') { showRoot(); listBackups(); } }
 async function showRoot(){
@@ -199,11 +227,17 @@ async function pack(list, onFile){
   }
   try { rd.cancel(); } catch(e){}
 }
+// Ver0.72: 와이파이 받기 단계: ① 스마트폰 찾기 ② 받는 중 % ③ 받기 완료 ④ 스마트폰과 비교 ⑤ 비교 결과
+const W = { s: 0, pct: 0, txt: {} };
+function wStep(n, state, txt){ W.txt[n] = [state, txt]; const e = $('#wSteps'); if (!e) return;
+  const names = { 1: '① 스마트폰 찾기', 2: '② 받기', 3: '③ 받기 완료', 4: '④ 스마트폰과 비교', 5: '⑤ 비교 결과' };
+  e.innerHTML = [1,2,3,4,5].map(k => { const v = W.txt[k] || [null, names[k]]; return `<div class="st"><span class="dot ${v[0] === true ? 'on' : v[0] === null ? 'wait' : ''}"></span><b>${v[1]}</b></div>`; }).join(''); }
+function wReset(){ W.txt = {}; wStep(1, null, '① 스마트폰 찾기'); }
 async function wifiGet(){
   if (!await need()) return;
-  stop = false; $('#bGet').disabled = true; prog(0, 1, '스마트폰을 찾는 중…');
+  stop = false; $('#bGet').disabled = true; prog(0, 1, '스마트폰을 찾는 중…'); wReset(); wStep(1, null, '① 같은 와이파이에서 스마트폰을 찾는 중…');
   try {
-    await connect();
+    await connect(); wStep(1, true, '① 스마트폰 찾음: ' + esc($('#phName').textContent.replace('찾은 스마트폰: ', '')));
     prog(0, 1, '스마트폰에서 파일 목록과 지문값을 받는 중…');
     const r = await fetch(phone() + '/list?' + auth());
     if (r.status === 403) { ls('tok', null); throw new Error('스마트폰이 이 PC를 모릅니다. 다시 누르면 번호를 한 번 물어봅니다.'); }
@@ -217,6 +251,7 @@ async function wifiGet(){
     }
     let done = 0, got = 0, bad = []; const total = need.length, t0 = Date.now(); const byP = new Map(need.map(f => [f.p, f]));
     prog(0, total, `전체 ${list.length}개 중 이미 PC에 있는 것 ${have}개, 새로 받을 것 ${total}개 (${mb(bytes)})`);
+    wStep(2, null, `② 받는 중 0% (새로 받을 것 ${total}개, ${mb(bytes)})`);
     // 200개 또는 20MB씩 묶어서, 두 줄로 나란히 받는다
     const batches = []; let cur = [], cb = 0;
     for (const f of need) { cur.push(f); cb += f.size; if (cur.length >= 200 || cb > 20e6) { batches.push(cur); cur = []; cb = 0; } }
@@ -237,18 +272,28 @@ async function wifiGet(){
             } catch(e) { bad.push(f.p + ': ' + e.message); }
             done++; const sec = (Date.now() - t0) / 1000;
             const spd = got / Math.max(sec, 0.1), eta = spd > 0 ? Math.max(0, (bytes - got) / spd) : 0;
+            wStep(2, null, `② 받는 중 ${total ? Math.floor(done * 100 / total) : 100}% (${done} / ${total}개)`);
             prog(done, total, `받는 중 ${done} / ${total} (${mb(got)} / ${mb(bytes)}, 초당 ${mb(spd)}, 남은 시간 약 ${eta >= 90 ? Math.ceil(eta / 60) + '분' : Math.ceil(eta) + '초'})${bad.length ? ' · 문제 ' + bad.length + '개' : ''}`);
           });
         } catch(e) { for (const f of bt) if (!bad.some(x => x.startsWith(f.p + ':'))) {} bad.push('묶음 받기 실패: ' + e.message); }
       }
     };
     await Promise.all([work(), work()]); saveBad();
+    if (!stop) {
+      wStep(2, true, `② 받기 끝 (${done} / ${total}개)`); wStep(3, bad.length ? false : true, bad.length ? `③ 받기 완료, 문제 ${bad.length}개` : `③ 받기 완료: 새로 ${total}개 (${mb(bytes)})`);
+      // ④ 스마트폰 목록의 파일이 PC에 모두 있는지(이름·크기, 사진은 이름의 지문값) 하나하나 짝을 맞춘다
+      wStep(4, null, '④ 스마트폰과 비교하는 중…'); let pair = 0, ci = 0;
+      for (const f of list) { try { const x = await fileOf(f.p); if (x.size === f.size && !badSet.has(f.p)) pair++; } catch(e){} if (++ci % 1000 === 0) wStep(4, null, `④ 스마트폰과 비교하는 중 ${ci} / ${list.length}`); }
+      wStep(4, true, `④ 비교 끝: 스마트폰 ${list.length}개 ↔ PC`);
+      const perfect = pair === list.length && !bad.length;
+      wStep(5, perfect, perfect ? `⑤ 완벽합니다. PC와 스마트폰이 똑같습니다 (짝 맞음 ${pair} / ${list.length})` : `⑤ 다른 것이 있습니다: 짝 맞음 ${pair} / ${list.length}. 다시 누르면 다른 것만 다시 받습니다`);
+    } else wStep(2, false, `② 멈춤 (${done} / ${total}개까지 받음, 다시 누르면 이어서)`);
     if (stop) prog(done, total, `멈췄습니다. ${done}개까지 받았습니다. 다시 누르면 남은 것만 이어서 받습니다.`);
     else $('#pMsg').innerHTML = bad.length ? `<span class="bad">✖ ${bad.length}건 문제가 있었습니다. 다시 누르면 못 받은 것만 다시 받습니다.</span><br>${bad.slice(0,20).map(esc).join('<br>')}`
       : `<span class="ok">✔ 끝났습니다. 스마트폰 백업 ${list.length}개 파일이 PC에 바이트 그대로 있습니다(새로 받은 것 ${total}개, ${mb(bytes)}). 모두 지문값으로 확인했습니다.</span>`;
     listBackups();
     if (!stop && !bad.length) try { await fetch(phone() + '/done?' + auth() + '&n=' + total); } catch(e){}
-  } catch(e) { $('#pMsg').innerHTML = `<span class="bad">✖ ${esc(e.message)}</span>`; }
+  } catch(e) { $('#pMsg').innerHTML = `<span class="bad">✖ ${esc(e.message)}</span>`; if (!W.txt[1] || W.txt[1][0] !== true) wStep(1, false, '① 스마트폰을 찾지 못했습니다'); }
   $('#bGet').disabled = false; getting = false;
 }
 // Ver0.57: 이 PC판을 켜 두면, 스마트폰에서 [💻 PC로 바로 백업]을 누를 때 저절로 받아 간다(15초마다 스마트폰을 살핌)
@@ -258,7 +303,7 @@ setInterval(async () => {
   let p = 'denied'; try { p = await root.queryPermission({mode:'readwrite'}); } catch(e){} if (p !== 'granted') return;
   const j = await hello(ls('addr'), 2000);
   $('#autoSt').textContent = j ? `스마트폰(${j.name || ls('addr')}) 연결됨 · 스마트폰에서 [💻 PC로 바로 백업]을 누르면 저절로 받습니다` : '스마트폰을 기다리는 중 (스마트폰 앱이 켜져 있어야 합니다)';
-  if (j && j.known && j.want) { getting = true; $('#autoSt').textContent = '스마트폰이 백업을 보내 달라고 해서 받는 중입니다…'; wifiGet(); }
+  if (j && j.known && j.want) { getting = true; $('#autoSt').textContent = '스마트폰에서 [PC로 바로 백업]을 눌러서, PC가 백업을 받는 중입니다…'; wifiGet(); }
 }, 15000);
 
 // ---------- 보관 폴더 확인 (USB로 복사한 뒤) ----------
@@ -402,7 +447,7 @@ async function usbTick(){
   step('u1', !!U.phone, U.phone ? `① USB 연결됨: ${esc(U.phone)}` : '① USB 연결 안 됨: 스마트폰을 USB 선으로 PC에 꽂아 주세요');
   step('u2', U.phone ? !!U.mtp : null, !U.phone ? '② 파일 전송 (선을 꽂으면 확인합니다)' : U.mtp ? (U.found ? '② 파일 전송 켜짐: 스마트폰 Download/묶인연락처풀기 폴더가 보입니다' : '② 파일 전송 켜짐, 그런데 스마트폰 Download 안에 "묶인연락처풀기" 폴더가 없습니다. 스마트폰 앱에서 먼저 백업해 주세요') : '② 파일 전송 꺼짐: 스마트폰 화면 위 알림에서 [USB 파일 전송] → [파일 전송]을 골라 주세요');
   step('u3', uKeep ? true : null, uKeep ? `③ PC 보관 위치: ${esc(U.target)}` : `③ PC 보관 위치를 지난번 그대로 하시겠습니까?<br><span class="sub">${esc(U.target)}${U.targetNew ? ' (처음이라 문서 안에 새로 만들 곳입니다)' : ''}</span>`,
-    uKeep ? `<button onclick="uKeep=false;usbTick()">바꾸기</button>` : `<button class="pri" onclick="uKeep=true;usbTick()">예, 그대로</button><button onclick="usbPick()">바꾸기</button>`);
+    uKeep ? `<button onclick="uKeep=false;usbTick()">바꾸기</button>` : `<button class="pri" onclick="uKeep=true;usbTick()">예, 그대로</button><button onclick="usbPick()">바꾸기</button>`) + ' <button onclick="usbOpen()">📂 열기</button>';
   const ready = U.phone && U.mtp && U.found && uKeep;
   if (U.busy) step('u4', null, '④ 백업하는 중… (스마트폰을 뽑지 마세요)', `<button onclick="hget('/stop',true)">■ 멈춤</button>`);
   else step('u4', U.last && U.last.ok ? true : ready ? null : false, U.last && U.last.ok ? `④ 끝났습니다: ${esc(U.last.msg)}` : '④ 백업을 시작하시겠습니까?', `<button class="pri" ${ready ? '' : 'disabled'} onclick="usbGo()">예, 시작</button>`);
@@ -412,6 +457,7 @@ async function usbTick(){
   usbTell();
   if (U.busy || U.last) { $('#uBar').style.width = (U.total ? U.done * 100 / U.total : 0).toFixed(1) + '%'; $('#uMsg').innerHTML = U.busy ? esc(U.msg) : U.last ? `<span class="${U.last.ok ? 'ok' : 'bad'}">${U.last.ok ? '✔' : '✖'} ${esc(U.last.msg)}</span>` : ''; }
 }
+async function usbOpen(){ try { await hget('/open?u=1', true); } catch(e){} }
 async function usbPick(){ try { const r = await hget('/pick', true); if (r.target) uKeep = true; } catch(e){} usbTick(); }
 async function usbGo(){ if (!confirm('스마트폰 Download/묶인연락처풀기 폴더에서 PC에 없는 파일만 복사하고, 사진은 지문값으로 확인합니다.\nPC 보관 위치: ' + U.target + '\n\n백업을 시작하시겠습니까?')) return; try { await hget('/copy', true); } catch(e) { alert('PC 도우미에 닿지 못했습니다: ' + e.message); } usbTick(); }
 usbTick(); setInterval(usbTick, 2000);
@@ -464,5 +510,38 @@ function usbTell(){
   const c = new AbortController(); setTimeout(() => c.abort(), 1500);
   fetch('http://' + addr + '/usbst?t=' + encodeURIComponent(tok) + '&j=' + encodeURIComponent(JSON.stringify(st)), { signal: c.signal }).catch(() => {});
 }
+
+// Ver0.72: 단추에 마우스를 대면 설명이 바로 뜬다
+const TIP = [
+  ['보관 폴더 열기', '고른 보관 폴더를 윈도우 탐색기로 바로 엽니다. 경로를 일일이 찾아 들어가지 않아도 됩니다. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 켜면 됩니다.'],
+  ['📂 열기', 'USB로 복사하는 보관 위치를 윈도우 탐색기로 바로 엽니다.'],
+  ['보관 폴더 고르기', 'PC 어느 폴더에 스마트폰 백업을 모을지 고릅니다. 한 번 고르면 다음에도 기억합니다. 예: 문서 안의 "연락처보관".'],
+  ['이 폴더 다시 쓰기 허락', '브라우저가 보관 폴더에 쓰기를 다시 물어볼 때 누릅니다. 폴더 내용은 바뀌지 않습니다.'],
+  ['📶 스마트폰에서 받기', '같은 와이파이에 있는 스마트폰을 저절로 찾아 백업 파일을 PC 보관 폴더로 받습니다. 이미 받은 것은 건너뛰고, 받은 파일마다 지문값(SHA-256)으로 바이트까지 확인합니다. 스마트폰 쪽은 읽기만 합니다.'],
+  ['■ 멈춤', '지금 하는 받기(또는 복사)를 멈춥니다. 다시 시작하면 남은 것만 이어서 합니다. 이미 받은 파일은 그대로 남습니다.'],
+  ['짝 다시 맺기', '이 PC가 기억한 스마트폰 열쇠를 지웁니다. 다음에 받을 때 스마트폰 화면의 번호 6자리를 한 번 더 물어봅니다.'],
+  ['보관 폴더 확인하기', 'PC 보관 폴더의 사진 파일을 한 장씩 다시 읽어, 이름의 지문값과 바이트가 맞는지, 백업이 쓰는 사진이 빠짐없이 있는지 확인합니다. 읽기만 합니다.'],
+  ['목록 새로 고침', 'PC 보관 폴더의 백업 목록을 다시 읽습니다.'],
+  ['보기', '이 백업에 든 연락처를 PC에서 사진과 함께 봅니다. 읽기만 하고 아무것도 바꾸지 않습니다.'],
+  ['스마트폰으로 보내기', '이 백업을 와이파이로 스마트폰에 보냅니다. 보낸 뒤 스마트폰 앱 [백업·되살리기]에서 [지워진 연락처 되살리기]를 누르면 복구됩니다.'],
+  ['지우기', '이 백업 하나를 PC에서 지웁니다(같이 만든 vcf·확인결과 txt 포함). 원본 사진은 다른 백업이 쓰므로 그대로 둡니다. 스마트폰 쪽은 건드리지 않습니다.'],
+  ['최근 3개만', '가장 최근 백업 3개만 남기고 오래된 백업을 PC에서 지웁니다. 원본 사진은 그대로 둡니다.'],
+  ['안 쓰는 사진 정리', '남은 백업 어느 것도 쓰지 않는 사진 파일만 골라 지웁니다. 남은 백업이 쓰는 사진은 한 장도 지우지 않습니다.'],
+  ['예, 그대로', '지난번과 같은 PC 보관 위치에 백업합니다.'],
+  ['바꾸기', 'PC 보관 위치를 다른 폴더로 바꿉니다.'],
+  ['예, 시작', 'USB로 연결된 스마트폰의 백업 폴더에서 PC에 없는 파일만 복사하고, 끝나면 스마트폰과 PC를 하나하나 비교합니다.'],
+  ['주소 복사', '이 프로그램을 받는 주소를 복사합니다.'],
+  ['카카오톡으로', '주소를 복사하고 카카오톡을 엽니다. 대화방에 붙여 넣어 보내세요.'],
+  ['메일로', '이 프로그램 주소를 메일로 보냅니다.']
+];
+(() => {
+  const tip = document.createElement('div'); tip.id = 'tipBox';
+  tip.style.cssText = 'position:fixed;z-index:50;max-width:360px;background:#102a43;color:#fff;padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none;pointer-events:none';
+  document.body.appendChild(tip);
+  const find = el => { const t = (el.textContent || '').trim(); const x = TIP.find(([k]) => t.startsWith(k) || t.includes(k)); return el.dataset.tip || (x && x[1]); };
+  document.addEventListener('mouseover', e => { const b = e.target.closest('button,summary'); if (!b) return; const t = find(b); if (!t) return;
+    tip.textContent = t; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + 120 > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = y + 'px'; });
+  document.addEventListener('mouseout', e => { if (e.target.closest('button,summary')) tip.style.display = 'none'; });
+})();
 </script>
 </body></html>
