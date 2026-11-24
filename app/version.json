@@ -1,1 +1,1 @@
-{"ver":"0.51","apk":"https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/download/contact-unlink.apk","pc":"0.51","pcSha":"4eed8f9d1ab0b148858e61146c76b3a11326c226b8b92a822e721b2aa1723dd7","notes":"처음 한 번 스스로 다시 깔아 다음부터 묻지 않고 업데이트"}
+{"ver":"0.52","apk":"https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/download/contact-unlink.apk","pc":"0.52","pcSha":"dbf7373e3ae15520559bd9883ae93fc403bb964c8f063f062e1db4490f369625","notes":"메모리 넘침 고침(중복 목록 줄임, 일하는 중 다시 찾기 막음), 켤 때 자동 풀기 실패 이유 표시"}
