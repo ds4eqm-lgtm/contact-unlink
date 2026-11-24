@@ -24,9 +24,11 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 .ph{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--line);cursor:pointer}
 .log{max-height:180px;overflow:auto;font-size:13px;white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
 .bk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:8px 0}
+.st{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:17px}.st b{flex:1}
+.dot{width:24px;height:24px;border-radius:50%;flex:none;background:#e53935}.dot.on{background:#00e5ff;box-shadow:0 0 14px #00e5ff,0 0 4px #00b8d4}.dot.wait{background:var(--line)}
 #big{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:9}#big img{max-width:92vw;max-height:92vh}
 </style></head><body>
-<header><span id="ver">Ver0.45</span><h1>묶인 연락처 풀기 PC판</h1><span class="sub" id="upd"></span></header>
+<header><span id="ver">Ver0.61</span><h1>묶인 연락처 풀기 PC판</h1><span class="sub" id="upd"></span></header>
 <main>
 <div class="card">
   <b>1. PC 보관 폴더</b>
@@ -44,15 +46,25 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
   <div class="pbar"><i id="pBar"></i></div><div id="pMsg" class="sub"></div>
 </div>
 
-<div class="card">
-  <b>3. 휴대폰 → PC (USB 선)</b>
+<div class="card" id="usbCard">
+  <b>3. 휴대폰 → PC (USB 선) 차례대로</b>
+  <div class="sub">불이 형광 파랑이면 된 것, 빨강이면 아직 안 된 것입니다. 위에서부터 차례로 파랗게 켜지면 마지막 단추만 누르면 됩니다.</div>
+  <div class="usb">
+    <div class="st" id="u0"></div>
+    <div class="st" id="u1"></div>
+    <div class="st" id="u2"></div>
+    <div class="st" id="u3"></div>
+    <div class="st" id="u4"></div>
+  </div>
+  <div class="pbar"><i id="uBar"></i></div><div id="uMsg" class="sub"></div>
+  <details class="sub" style="margin-top:8px"><summary>PC 도우미 없이 손으로 하기(예전 방식)</summary>
   <ol>
     <li>휴대폰을 USB 선으로 PC에 꽂고, 휴대폰 화면 위 알림에서 [USB 사용 목적] → [파일 전송]을 고릅니다.</li>
     <li>PC의 파일 탐색기 → 내 PC → (휴대폰 이름) → 내장 메모리 → Download 로 들어갑니다.</li>
     <li>"묶인연락처풀기" 폴더를 위 1번에서 고른 PC 보관 폴더 안으로 끌어다 놓아 복사합니다(사진이 많으면 시간이 걸립니다).</li>
     <li>다 복사되면 아래 단추를 누릅니다. 사진 하나하나를 지문값(SHA-256)으로 확인해, 한 바이트라도 다르거나 빠진 것을 알려 줍니다.</li>
-  </ol>
-  <div class="row"><button class="pri" onclick="verifyAll()">보관 폴더 확인하기 (바이트까지)</button></div>
+  </ol></details>
+  <div class="row"><button onclick="verifyAll()">보관 폴더 확인하기 (바이트까지)</button></div>
   <div id="vMsg" class="sub"></div><div id="vLog" class="log" style="display:none"></div>
 </div>
 
@@ -78,7 +90,8 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.60';
+const VER = '0.61';
+document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
 const $ = s => document.querySelector(s);
@@ -221,7 +234,8 @@ async function wifiGet(){
               got += f.size; badSet.delete(f.p);
             } catch(e) { bad.push(f.p + ': ' + e.message); }
             done++; const sec = (Date.now() - t0) / 1000;
-            prog(done, total, `받는 중 ${done} / ${total} (${mb(got)} / ${mb(bytes)}, 초당 ${mb(got / Math.max(sec, 0.1))})${bad.length ? ' · 문제 ' + bad.length + '개' : ''}`);
+            const spd = got / Math.max(sec, 0.1), eta = spd > 0 ? Math.max(0, (bytes - got) / spd) : 0;
+            prog(done, total, `받는 중 ${done} / ${total} (${mb(got)} / ${mb(bytes)}, 초당 ${mb(spd)}, 남은 시간 약 ${eta >= 90 ? Math.ceil(eta / 60) + '분' : Math.ceil(eta) + '초'})${bad.length ? ' · 문제 ' + bad.length + '개' : ''}`);
           });
         } catch(e) { for (const f of bt) if (!bad.some(x => x.startsWith(f.p + ':'))) {} bad.push('묶음 받기 실패: ' + e.message); }
       }
@@ -368,5 +382,31 @@ async function sendBackup(i){
     if (j.pc && n(j.pc) > n(VER)) $('#upd').textContent = `새 판 Ver${j.pc}이 있습니다. 프로그램을 닫았다가 바탕화면 아이콘으로 다시 켜면 저절로 바뀝니다.`;
   } catch(e){}
 })();
+
+// ---------- Ver0.61: USB 차례대로 (PC 도우미가 휴대폰을 보고, 지난번 보관 위치를 기억해 새 파일만 복사) ----------
+const HELP = 'http://localhost:8766';
+let U = null, uKeep = false, uAsked = false;
+function step(id, state, txt, btn){ $('#' + id).innerHTML = `<span class="dot ${state === true ? 'on' : state === null ? 'wait' : ''}"></span><b>${txt}</b>${btn || ''}`; }
+async function hget(p, post){ const r = await fetch(HELP + p, post ? { method: 'POST', body: post === true ? '' : post } : {}); return r.json(); }
+async function usbTick(){
+  try { U = await hget('/usb?t=' + Date.now()); } catch(e) { U = null; }
+  if (!U) {
+    step('u0', false, 'PC 도우미: 꺼져 있음. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 이 프로그램을 켜면 저절로 켜집니다');
+    for (const k of ['u1','u2','u3','u4']) step(k, null, {u1:'① USB 선을 꽂습니다',u2:'② 휴대폰에서 [파일 전송]을 고릅니다',u3:'③ PC 보관 위치 확인',u4:'④ 백업 시작'}[k]);
+    return;
+  }
+  step('u0', true, 'PC 도우미: 켜짐');
+  step('u1', !!U.phone, U.phone ? `① USB 연결됨: ${esc(U.phone)}` : '① USB 연결 안 됨: 휴대폰을 USB 선으로 PC에 꽂아 주세요');
+  step('u2', U.phone ? !!U.mtp : null, !U.phone ? '② 파일 전송 (선을 꽂으면 확인합니다)' : U.mtp ? (U.found ? '② 파일 전송 켜짐: 휴대폰 Download/묶인연락처풀기 폴더가 보입니다' : '② 파일 전송 켜짐, 그런데 휴대폰 Download 안에 "묶인연락처풀기" 폴더가 없습니다. 휴대폰 앱에서 먼저 백업해 주세요') : '② 파일 전송 꺼짐: 휴대폰 화면 위 알림에서 [USB 파일 전송] → [파일 전송]을 골라 주세요');
+  step('u3', uKeep ? true : null, uKeep ? `③ PC 보관 위치: ${esc(U.target)}` : `③ PC 보관 위치를 지난번 그대로 하시겠습니까?<br><span class="sub">${esc(U.target)}${U.targetNew ? ' (처음이라 문서 안에 새로 만들 곳입니다)' : ''}</span>`,
+    uKeep ? `<button onclick="uKeep=false;usbTick()">바꾸기</button>` : `<button class="pri" onclick="uKeep=true;usbTick()">예, 그대로</button><button onclick="usbPick()">바꾸기</button>`);
+  const ready = U.phone && U.mtp && U.found && uKeep;
+  if (U.busy) step('u4', null, '④ 백업하는 중… (휴대폰을 뽑지 마세요)', `<button onclick="hget('/stop',true)">■ 멈춤</button>`);
+  else step('u4', U.last && U.last.ok ? true : ready ? null : false, U.last && U.last.ok ? `④ 끝났습니다: ${esc(U.last.msg)}` : '④ 백업을 시작하시겠습니까?', `<button class="pri" ${ready ? '' : 'disabled'} onclick="usbGo()">예, 시작</button>`);
+  if (U.busy || U.last) { $('#uBar').style.width = (U.total ? U.done * 100 / U.total : 0).toFixed(1) + '%'; $('#uMsg').innerHTML = U.busy ? esc(U.msg) : U.last ? `<span class="${U.last.ok ? 'ok' : 'bad'}">${U.last.ok ? '✔' : '✖'} ${esc(U.last.msg)}</span>` : ''; }
+}
+async function usbPick(){ try { const r = await hget('/pick', true); if (r.target) uKeep = true; } catch(e){} usbTick(); }
+async function usbGo(){ if (!confirm('휴대폰 Download/묶인연락처풀기 폴더에서 PC에 없는 파일만 복사하고, 사진은 지문값으로 확인합니다.\nPC 보관 위치: ' + U.target + '\n\n백업을 시작하시겠습니까?')) return; try { await hget('/copy', true); } catch(e) { alert('PC 도우미에 닿지 못했습니다: ' + e.message); } usbTick(); }
+usbTick(); setInterval(usbTick, 2000);
 </script>
 </body></html>
