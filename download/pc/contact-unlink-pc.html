@@ -42,6 +42,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
   <div class="sub">모바일 폰 앱을 켜 두고 아래 큰 단추만 누르세요. PC가 같은 와이파이에서 모바일 폰을 저절로 찾습니다.
     처음 한 번만 모바일 폰 앱 [백업·되살리기] → [📶 와이파이로 PC와 주고받기]에 나오는 번호 6자리를 물어보고, 그다음부터는 번호 없이 바로 받습니다.</div>
   <div class="row"><button class="pri" id="bGet" style="font-size:18px;padding:12px 22px" onclick="wifiGet()">📶 모바일 폰에서 받기</button><button onclick="stopNow()">■ 멈춤</button><span id="phName" class="sub"></span></div>
+  <div id="pairSt"></div>
   <div id="autoSt" class="sub" style="color:#1a7f37"></div>
   <details class="sub"><summary>못 찾을 때: 주소 직접 넣기</summary>주소 <input id="addr" placeholder="192.168.0.5:8765" size="22"> 번호 <input id="code" placeholder="6자리" size="8"> <button onclick="forgetPhone()">짝 다시 맺기</button></details>
   <div class="usb" id="wSteps"></div>
@@ -94,7 +95,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.76';
+const VER = '0.77';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -208,6 +209,7 @@ async function connect(){
     if (r.status === 403) throw new Error('번호가 맞지 않습니다. 모바일 폰 화면의 번호를 다시 확인해 주세요. (모바일 폰에서 [와이파이로 PC와 주고받기] 화면이 열려 있어야 합니다)');
     const j = await r.json(); if (!j.t) throw new Error('짝을 맺지 못했습니다'); ls('tok', j.t);
   }
+  pairDraw({ known: true, name: f[1].name, ver: f[1].ver });
 }
 /** 한 번 연결로 여러 파일을 받아 하나씩 꺼낸다 */
 async function pack(list, onFile){
@@ -229,9 +231,19 @@ async function pack(list, onFile){
 }
 // Ver0.72: 와이파이 받기 단계: ① 모바일 폰 찾기 ② 받는 중 % ③ 받기 완료 ④ 모바일 폰과 비교 ⑤ 비교 결과
 const W = { s: 0, pct: 0, txt: {} };
-function wStep(n, state, txt){ W.txt[n] = [state, txt]; const e = $('#wSteps'); if (!e) return;
+function wStep(n, state, txt){ W.txt[n] = [state, txt]; tellPhone(); const e = $('#wSteps'); if (!e) return;
   const names = { 1: '① 모바일 폰 찾기', 2: '② 받기', 3: '③ 받기 완료', 4: '④ 모바일 폰과 비교', 5: '⑤ 비교 결과' };
   e.innerHTML = [1,2,3,4,5].map(k => { const v = W.txt[k] || [null, names[k]]; return `<div class="st"><span class="dot ${v[0] === true ? 'on' : v[0] === null ? 'wait' : ''}"></span><b>${v[1]}</b></div>`; }).join(''); }
+// Ver0.77: 번호(짝 맺기)가 활성화됐는지, 모바일 폰과 지금 연결됐는지 불로 보여 준다(5초마다)
+function pairDraw(j){ const e = $('#pairSt'); if (!e) return; const on = !!ls('tok'), live = !!(j && j.known);
+  const row = (ok, t) => `<div class="st"><span class="dot ${ok ? 'on' : ''}"></span><b>${t}</b></div>`;
+  e.innerHTML = row(on && (!j || j.known !== false), on ? (j && j.known === false ? '번호 활성화 안 됨: 모바일 폰이 이 PC를 잊었습니다. 받기를 누르면 번호 6자리를 한 번 더 묻습니다' : '번호 활성화됨: 이 PC와 모바일 폰이 짝을 맺었습니다 (번호 다시 안 물음)') : '번호 활성화 안 됨: [모바일 폰에서 받기]를 누르면 모바일 폰 화면의 번호 6자리를 한 번 묻습니다')
+    + row(live, live ? `모바일 폰과 연결됨: ${esc(j.name || '')} (Ver${esc(j.ver || '')})` : (on ? '모바일 폰과 연결 안 됨: 모바일 폰에서 앱을 켜 두고, 같은 와이파이인지 확인해 주세요' : '모바일 폰과 연결 안 됨')); }
+setInterval(async () => { if (!ls('addr')) return pairDraw(null); pairDraw(await hello(ls('addr'), 1500)); }, 5000); setTimeout(() => pairDraw(null), 300);
+// Ver0.77: 받기 단계를 모바일 폰 화면에도 똑같이 보여 준다(1초에 한 번만 알림)
+let tellAt = 0, tellT = 0;
+function tellPhone(){ if (!PH || !ls('tok')) return; const go = () => { tellAt = Date.now(); const s = [1,2,3,4,5].filter(k => W.txt[k]).map(k => W.txt[k]); const m = /받는 중 (\d+)%/.exec((W.txt[2] || [])[1] || ''); fetch(phone() + '/prog?' + auth() + '&j=' + encodeURIComponent(JSON.stringify({ s, pc: m ? +m[1] : null }))).catch(() => {}); };
+  clearTimeout(tellT); if (Date.now() - tellAt > 1000) go(); else tellT = setTimeout(go, 1000); }
 function wReset(){ W.txt = {}; wStep(1, null, '① 모바일 폰 찾기'); }
 async function wifiGet(){
   if (!await need()) return;
@@ -539,9 +551,14 @@ const TIP = [
   tip.style.cssText = 'position:fixed;z-index:50;max-width:360px;background:#102a43;color:#fff;padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none;pointer-events:none';
   document.body.appendChild(tip);
   const find = el => { const t = (el.textContent || '').trim(); const x = TIP.find(([k]) => t.startsWith(k) || t.includes(k)); return el.dataset.tip || (x && x[1]); };
-  document.addEventListener('mouseover', e => { const b = e.target.closest('button,summary'); if (!b) return; const t = find(b); if (!t) return;
+  let tipHide = 0;
+  document.addEventListener('mouseover', e => { const b = e.target.closest('button,summary'); if (!b) return; const t = find(b); if (!t) return; clearTimeout(tipHide);
     tip.textContent = t; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + 120 > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = y + 'px'; });
-  document.addEventListener('mouseout', e => { if (e.target.closest('button,summary')) tip.style.display = 'none'; });
+  // Ver0.77: 마우스를 떼거나 단추를 눌러도 바로 사라지지 않고, 읽을 만한 시간(1초에 9글자, 최소 5초) 동안 떠 있다
+  const hold = () => { clearTimeout(tipHide); tipHide = setTimeout(() => { tip.style.display = 'none'; }, Math.max(5, Math.round(tip.textContent.length / 9)) * 1000); };
+  document.addEventListener('mouseout', e => { if (e.target.closest('button,summary')) hold(); });
+  document.addEventListener('click', e => { const b = e.target.closest('button,summary'); if (b && find(b)) { tip.style.display = 'block'; hold(); } }, true);
+  tip.addEventListener('click', () => { tip.style.display = 'none'; });
 })();
 </script>
 </body></html>
