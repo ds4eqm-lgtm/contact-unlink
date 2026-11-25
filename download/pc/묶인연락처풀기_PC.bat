@@ -30,6 +30,9 @@ $bat = Join-Path $D '묶인연락처풀기_PC.bat'
 if ($env:SELF -ne $bat) { Copy-Item -Force $env:SELF $bat }
 # Ver0.61: 실행기 자신도 새 판이면 묻지 않고 바꾼다(지문값이 맞을 때만)
 try { if ($j.batSha -and ((Get-FileHash $bat -Algorithm SHA256).Hash.ToLower() -ne "$($j.batSha)".ToLower())) { $tb = "$bat.new"; Invoke-WebRequest -Uri ($base + 'download/pc/' + [Uri]::EscapeDataString('묶인연락처풀기_PC.bat') + '?t=' + [DateTime]::Now.Ticks) -OutFile $tb -UseBasicParsing -TimeoutSec 60; if ((Get-FileHash $tb -Algorithm SHA256).Hash.ToLower() -eq "$($j.batSha)".ToLower()) { Move-Item -Force $tb $bat } else { Remove-Item $tb -Force } } } catch { }
+# Ver0.90: 인터넷에서 받은 파일 표시(Zone.Identifier)를 지운다. 이 표시가 남아 있으면 바탕화면 아이콘을 누를 때마다
+# "게시자를 확인하지 못했습니다… 실행하시겠습니까?" 보안 경고가 떴다. 이 프로그램이 만든 자기 파일만 지운다.
+foreach ($uf in @($bat, $html, $ico, "$env:SELF")) { if ($uf -and (Test-Path -LiteralPath $uf)) { try { Unblock-File -LiteralPath $uf } catch { }; try { Remove-Item -LiteralPath $uf -Stream Zone.Identifier -Force -ErrorAction SilentlyContinue } catch { } } }
 $ws = New-Object -ComObject WScript.Shell
 foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
   $l = $ws.CreateShortcut((Join-Path $dir '묶인 연락처 풀기 PC.lnk'))

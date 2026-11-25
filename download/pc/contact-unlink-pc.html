@@ -96,7 +96,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.88';
+const VER = '0.90';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -577,7 +577,7 @@ const TIP = [
   tip.querySelector('#tipDay').onclick = () => { try { localStorage.setItem('tipDay', today()); } catch(e){} close(); };
   tip.querySelector('#tipX').onclick = close; tip.querySelector('#tipCp').onclick = copy;
   tip.addEventListener('contextmenu', e => { if (!String(getSelection())) { e.preventDefault(); copy(); } }); // 오른쪽 마우스 = 설명 복사(글자를 골랐으면 브라우저 메뉴)
-  tip.addEventListener('mouseenter', () => clearTimeout(tipHide)); tip.addEventListener('mouseleave', hold);
+  tip.addEventListener('mouseenter', () => { clearTimeout(tipHide); if (!pinned) tSt.textContent = '🖱 마우스를 얹고 있는 동안은 닫히지 않습니다'; }); // Ver0.89 tip.addEventListener('mouseleave', hold);
   tip.querySelector('#tipHand').addEventListener('mousedown', ev => { const r = tip.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top; ev.preventDefault();
     const mv = m => { tip.style.left = Math.max(0, Math.min(innerWidth - 80, m.clientX - dx)) + 'px'; tip.style.top = Math.max(0, Math.min(innerHeight - 30, m.clientY - dy)) + 'px'; };
     const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); pinned = true; clearTimeout(tipHide); tSt.textContent = '📌 고정됨 · [닫기]를 누를 때까지 떠 있습니다'; };
