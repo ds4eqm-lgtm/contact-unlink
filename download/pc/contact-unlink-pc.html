@@ -34,6 +34,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
   <b>1. PC 보관 폴더</b>
   <div class="sub">모바일 폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 모바일 폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
   <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()">이 폴더 다시 쓰기 허락</button><button id="openRoot" onclick="openRoot()">📂 보관 폴더 열기</button></div>
+  <div id="rootPath" class="row" style="display:none;align-items:center"><span class="sub">위치:</span><code id="rootPathTxt" style="user-select:all;background:#f1f5f9;padding:4px 8px;border-radius:6px;word-break:break-all;flex:1"></code><button id="cpPath" onclick="copyPath()" disabled>📋 경로 복사</button></div>
   <div id="openMsg" class="sub" style="display:none"></div>
 </div>
 
@@ -95,7 +96,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.77';
+const VER = '0.88';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -115,7 +116,7 @@ async function loadRoot(){ try { const d = await idb(); return await new Promise
 async function pickRoot(){
   if (!window.showDirectoryPicker) return alert('이 브라우저는 폴더 쓰기를 지원하지 않습니다. 엣지나 크롬으로 열어 주세요.');
   try { root = await showDirectoryPicker({ id: 'cu-root', mode: 'readwrite' }); } catch(e) { return; }
-  await saveRoot(root); await markRoot(); showRoot(); listBackups();
+  await saveRoot(root); rootPath = ''; await markRoot(); showRoot(); listBackups(); whereRoot();
 }
 // Ver0.73: 보관 폴더 열기. 브라우저는 폴더의 실제 경로를 알려 주지 않으므로, 고른 폴더에 작은 표시 파일을 하나 두고
 // PC 도우미(묶인연락처풀기_PC.bat)가 그 표시 파일을 찾아 윈도우 탐색기로 바로 연다. 연락처 백업 파일은 건드리지 않는다.
@@ -123,12 +124,25 @@ async function markRoot(){
   if (!root) return '';
   let id = ''; try { id = localStorage.getItem('cu-mark') || ''; } catch(e){}
   if (!id) { id = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('cu-mark', id); } catch(e){} }
-  const nm = '_보관폴더표시_' + id + '.txt';
+  const nm = '_cu_mark_' + id + '.txt'; // Ver0.86: 영문 이름(한글 이름은 PC 도우미에 깨져 전달되어 폴더를 못 찾았음)
+  try { await root.removeEntry('_보관폴더표시_' + id + '.txt'); } catch(e){} // 예전 판이 둔 한글 표시 파일 정리(이 프로그램이 만든 파일만)
   try { await root.getFileHandle(nm); } catch(e) {
     try { const w = await (await root.getFileHandle(nm, { create: true })).createWritable(); await w.write('묶인 연락처 풀기 PC판이 [보관 폴더 열기]로 이 폴더를 찾을 때 쓰는 표시 파일입니다. 지워도 백업에는 영향이 없습니다.\r\n'); await w.close(); } catch(e2) { return ''; }
   }
   return nm;
 }
+// Ver0.86~0.87: 열기 전에도 보관 폴더의 전체 경로를 보여 주고, [경로 복사]로 탐색기 주소창에 붙여 넣을 수 있게
+let rootPath = '';
+async function whereRoot(){
+  const e = $('#rootPath'); if (!e) return; if (!root) { e.style.display = 'none'; return; }
+  let p = 'denied'; try { p = await root.queryPermission({mode:'readwrite'}); } catch(x){} if (p !== 'granted') return;
+  const nm = await markRoot(); e.style.display = ''; if (!rootPath) $('#rootPathTxt').textContent = '전체 경로를 찾는 중…';
+  try { const r = await hget('/where?m=' + encodeURIComponent(nm) + '&n=' + encodeURIComponent(root.name), true);
+    if (r.ok) { rootPath = r.path; $('#rootPathTxt').textContent = r.path; $('#cpPath').disabled = false; }
+    else $('#rootPathTxt').textContent = r.why === 'notfound' ? 'PC에서 이 폴더의 위치를 찾지 못했습니다. [보관 폴더 고르기]로 다시 골라 주세요.' : 'PC 도우미가 예전 판입니다. 바탕화면 아이콘으로 다시 켜면 경로가 나옵니다.';
+  } catch(x) { $('#rootPathTxt').textContent = 'PC 도우미가 꺼져 있어 전체 경로를 알 수 없습니다(폴더 이름: ' + root.name + '). 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 켜면 나옵니다.'; }
+}
+function copyPath(){ if (!rootPath) return; (navigator.clipboard ? navigator.clipboard.writeText(rootPath) : Promise.reject()).then(() => openSay('경로를 복사했습니다. 탐색기 주소창에 붙여 넣고(Ctrl+V) Enter를 누르면 바로 갑니다: ' + rootPath), () => prompt('복사해 주세요', rootPath)); }
 function openSay(t){ const m = $('#openMsg'); m.style.display = t ? '' : 'none'; m.textContent = t || ''; }
 async function openRoot(){
   if (!root) return alert('먼저 [보관 폴더 고르기]로 폴더를 골라 주세요.');
@@ -136,14 +150,14 @@ async function openRoot(){
   openSay('보관 폴더 "' + root.name + '"을(를) 찾아 탐색기로 여는 중입니다…');
   try {
     const r = await hget('/open?m=' + encodeURIComponent(nm) + '&n=' + encodeURIComponent(root.name), true);
-    if (r.ok) { openSay('탐색기에서 열었습니다: ' + r.path); setTimeout(() => openSay(''), 8000); return; }
+    if (r.ok) { rootPath = r.path; $('#rootPathTxt').textContent = r.path; $('#cpPath').disabled = false; openSay('탐색기에서 열었습니다: ' + r.path + ' (탐색기 창이 이 창 뒤에 열렸을 수 있습니다. 작업 표시줄을 확인해 주세요)'); setTimeout(() => openSay(''), 15000); return; }
     if (r.why !== 'notfound') { openSay('PC 도우미가 예전 판이라 폴더 열기를 모릅니다. 이 창을 닫고 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 다시 켜 주세요. 새 도우미로 바뀌어 바로 열립니다.'); return; }
     openSay('보관 폴더 "' + root.name + '"을(를) PC에서 찾지 못했습니다. [보관 폴더 고르기]로 다시 한 번 골라 주시면 다음부터는 바로 열립니다.');
   } catch(e) {
     openSay('PC 도우미가 꺼져 있어 탐색기를 열 수 없습니다. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 이 프로그램을 다시 켜 주세요(도우미도 함께 켜집니다). 그 전까지는 탐색기에서 "' + root.name + '" 폴더를 찾아 들어가시면 됩니다.');
   }
 }
-async function regrant(){ if (root && (await root.requestPermission({mode:'readwrite'})) === 'granted') { showRoot(); listBackups(); } }
+async function regrant(){ if (root && (await root.requestPermission({mode:'readwrite'})) === 'granted') { showRoot(); listBackups(); whereRoot(); } }
 async function showRoot(){
   $('#rootName').textContent = root ? '보관 폴더: ' + root.name : '아직 고르지 않았습니다';
   let p = 'granted'; try { p = root ? await root.queryPermission({mode:'readwrite'}) : 'granted'; } catch(e){}
@@ -436,7 +450,7 @@ async function sendBackup(i){
 // ---------- 시작 ----------
 (async () => {
   try { $('#addr').value = localStorage.getItem('addr') || ''; } catch(e){}
-  root = await loadRoot(); await showRoot(); listBackups();
+  root = await loadRoot(); await showRoot(); listBackups(); setTimeout(whereRoot, 800); setTimeout(() => { if (!rootPath) whereRoot(); }, 6000);
   try { const j = await (await fetch('https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/app/version.json?t=' + Date.now())).json();
     const n = v => { const p = String(v).split('.'); return (+p[0]||0) * 1000 + (+p[1]||0); };
     if (j.pc && n(j.pc) > n(VER)) $('#upd').textContent = `새 판 Ver${j.pc}이 있습니다. 프로그램을 닫았다가 바탕화면 아이콘으로 다시 켜면 저절로 바뀝니다.`;
@@ -525,6 +539,7 @@ function usbTell(){
 
 // Ver0.72: 단추에 마우스를 대면 설명이 바로 뜬다
 const TIP = [
+  ['경로 복사', '보관 폴더의 전체 경로를 복사합니다. 윈도우 탐색기 주소창에 붙여 넣고(Ctrl+V) Enter를 누르면 바로 그 폴더로 갑니다.'],
   ['보관 폴더 열기', '고른 보관 폴더를 윈도우 탐색기로 바로 엽니다. 경로를 일일이 찾아 들어가지 않아도 됩니다. 바탕화면의 [묶인 연락처 풀기 PC] 아이콘으로 켜면 됩니다.'],
   ['📂 열기', 'USB로 복사하는 보관 위치를 윈도우 탐색기로 바로 엽니다.'],
   ['보관 폴더 고르기', 'PC 어느 폴더에 모바일 폰 백업을 모을지 고릅니다. 한 번 고르면 다음에도 기억합니다. 예: 문서 안의 "연락처보관".'],
@@ -547,18 +562,30 @@ const TIP = [
   ['메일로', '이 프로그램 주소를 메일로 보냅니다.']
 ];
 (() => {
+  // Ver0.83~0.85: 설명 말풍선 = 오른쪽 아래 [닫기], 위 손잡이를 끌어 옮기면 그 자리에 고정(저절로 안 닫힘), [복사] 단추·오른쪽 마우스로 복사, 글자를 끌어 골라 복사도 됨
   const tip = document.createElement('div'); tip.id = 'tipBox';
-  tip.style.cssText = 'position:fixed;z-index:50;max-width:360px;background:#102a43;color:#fff;padding:10px 12px;border-radius:10px;font-size:14px;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none;pointer-events:none';
+  tip.style.cssText = 'position:fixed;z-index:50;width:360px;max-width:calc(100vw - 16px);background:#102a43;color:#fff;padding:0 12px 10px;border-radius:10px;font-size:14px;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none';
+  tip.innerHTML = '<div id="tipHand" title="끌어서 옮기면 그 자리에 고정됩니다" style="text-align:center;color:#9fb3c8;font-size:12px;padding:4px 0;cursor:move;user-select:none">⠿ 끌어서 옮기기</div><div id="tipTxt" style="user-select:text"></div><div style="display:flex;gap:6px;align-items:center;margin-top:8px"><span id="tipSt" style="flex:1;font-size:12px;color:#cfe3ff"></span><button id="tipDay" style="font-size:13px;padding:4px 10px">오늘 열지 않음</button><button id="tipCp" style="font-size:13px;padding:4px 10px">📋 복사</button><button id="tipX" style="font-size:13px;padding:4px 10px">✕ 닫기</button></div>';
   document.body.appendChild(tip);
-  const find = el => { const t = (el.textContent || '').trim(); const x = TIP.find(([k]) => t.startsWith(k) || t.includes(k)); return el.dataset.tip || (x && x[1]); };
-  let tipHide = 0;
-  document.addEventListener('mouseover', e => { const b = e.target.closest('button,summary'); if (!b) return; const t = find(b); if (!t) return; clearTimeout(tipHide);
-    tip.textContent = t; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + 120 > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = y + 'px'; });
-  // Ver0.77: 마우스를 떼거나 단추를 눌러도 바로 사라지지 않고, 읽을 만한 시간(1초에 9글자, 최소 5초) 동안 떠 있다
-  const hold = () => { clearTimeout(tipHide); tipHide = setTimeout(() => { tip.style.display = 'none'; }, Math.max(5, Math.round(tip.textContent.length / 9)) * 1000); };
-  document.addEventListener('mouseout', e => { if (e.target.closest('button,summary')) hold(); });
-  document.addEventListener('click', e => { const b = e.target.closest('button,summary'); if (b && find(b)) { tip.style.display = 'block'; hold(); } }, true);
-  tip.addEventListener('click', () => { tip.style.display = 'none'; });
+  const tTxt = tip.querySelector('#tipTxt'), tSt = tip.querySelector('#tipSt'); let pinned = false, tipHide = 0;
+  const find = el => { if (tip.contains(el)) return null; const t = (el.textContent || '').trim(); const x = TIP.find(([k]) => t.startsWith(k) || t.includes(k)); return el.dataset.tip || (x && x[1]); };
+  const close = () => { tip.style.display = 'none'; pinned = false; clearTimeout(tipHide); };
+  const copy = () => { const t = tTxt.textContent; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { tSt.textContent = '복사했습니다'; }, () => { prompt('복사해 주세요', t); }); };
+  const hold = () => { if (pinned) return; clearTimeout(tipHide); const sec = Math.max(5, Math.round(tTxt.textContent.length / 9)); tSt.textContent = sec + '초 뒤 저절로 닫힙니다'; tipHide = setTimeout(close, sec * 1000); };
+  // Ver0.88: [오늘 열지 않음] = 오늘 하루 설명 말풍선을 띄우지 않음(내일 다시 뜸)
+  const today = () => new Date().toLocaleDateString('ko-KR'); const dayOff = () => { try { return localStorage.getItem('tipDay') === today(); } catch(e) { return false; } };
+  tip.querySelector('#tipDay').onclick = () => { try { localStorage.setItem('tipDay', today()); } catch(e){} close(); };
+  tip.querySelector('#tipX').onclick = close; tip.querySelector('#tipCp').onclick = copy;
+  tip.addEventListener('contextmenu', e => { if (!String(getSelection())) { e.preventDefault(); copy(); } }); // 오른쪽 마우스 = 설명 복사(글자를 골랐으면 브라우저 메뉴)
+  tip.addEventListener('mouseenter', () => clearTimeout(tipHide)); tip.addEventListener('mouseleave', hold);
+  tip.querySelector('#tipHand').addEventListener('mousedown', ev => { const r = tip.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top; ev.preventDefault();
+    const mv = m => { tip.style.left = Math.max(0, Math.min(innerWidth - 80, m.clientX - dx)) + 'px'; tip.style.top = Math.max(0, Math.min(innerHeight - 30, m.clientY - dy)) + 'px'; };
+    const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); pinned = true; clearTimeout(tipHide); tSt.textContent = '📌 고정됨 · [닫기]를 누를 때까지 떠 있습니다'; };
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); });
+  document.addEventListener('mouseover', e => { if (pinned || dayOff()) return; const b = e.target.closest('button,summary'); if (!b) return; const t = find(b); if (!t) return; clearTimeout(tipHide);
+    tTxt.textContent = t; tSt.textContent = ''; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + tip.offsetHeight > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = Math.max(0, y) + 'px'; });
+  document.addEventListener('mouseout', e => { const b = e.target.closest('button,summary'); if (b && !tip.contains(b)) hold(); });
+  document.addEventListener('click', e => { const b = e.target.closest('button,summary'); if (b && !tip.contains(b) && find(b) && !dayOff()) { if (!pinned) { tip.style.display = 'block'; hold(); } } }, true);
 })();
 </script>
 </body></html>

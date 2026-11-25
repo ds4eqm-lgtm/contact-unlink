@@ -155,26 +155,28 @@ while ($L.IsListening) {
         $job = Start-Job -ScriptBlock $copy -ArgumentList $T, $sf, $finder.ToString()
       }
       Reply $ctx @{ ok = $true }
-    } elseif ($path -eq '/open') {
-      # Ver0.73: 보관 폴더를 윈도우 탐색기로 바로 연다. u=1 이면 USB 보관 위치, 아니면 프로그램 창이 고른 폴더(표시 파일 m 로 찾음).
-      $q = $ctx.Request.QueryString; $dir = ''
+    } elseif ($path -eq '/open' -or $path -eq '/where') {
+      # Ver0.73/0.86: 보관 폴더를 찾아 윈도우 탐색기로 연다(/where 는 경로만 알려 줌). u=1 이면 USB 보관 위치, 아니면 프로그램 창이 고른 폴더(표시 파일 m, 폴더 이름 n 으로 찾음).
+      # Ver0.86 고침: HttpListener 의 QueryString 은 한글 주소를 윈도우 기본 글자(CP949)로 풀어 깨졌다 → 주소를 UTF-8로 직접 푼다. 표시 파일 이름도 영문으로.
+      $q = @{}; foreach ($kv in $ctx.Request.Url.Query.TrimStart('?').Split('&')) { $e = $kv.IndexOf('='); if ($e -gt 0) { $q[$kv.Substring(0, $e)] = [Uri]::UnescapeDataString($kv.Substring($e + 1).Replace('+', ' ')) } }
+      $dir = ''
       if ($q['u']) { $dir = Target; New-Item -ItemType Directory -Force -Path $dir | Out-Null }
       else {
-        $m = "$($q['m'])"; $rf = Join-Path $D 'root_path.txt'
-        if ($m -match '^_보관폴더표시_[a-z0-9]+\.txt$') {
+        $m = "$($q['m'])"; $n = "$($q['n'])"; $rf = Join-Path $D 'root_path.txt'
+        if ($m -match '^_cu_mark_[a-z0-9]+\.txt$') {
           if (Test-Path $rf) { $c = (Get-Content $rf -Raw -Encoding UTF8).Trim(); if ($c -and (Test-Path -LiteralPath (Join-Path $c $m))) { $dir = $c } }
-          if (-not $dir) {
-            $roots = @([Environment]::GetFolderPath('UserProfile'), [Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop')) + @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -and $_.Free -ne $null } | ForEach-Object { $_.Root })
-            foreach ($r0 in ($roots | Select-Object -Unique)) {
-              $hit = Get-ChildItem -LiteralPath $r0 -Filter $m -File -Recurse -Depth 5 -Force -ErrorAction SilentlyContinue | Select-Object -First 1
-              if ($hit) { $dir = $hit.DirectoryName; [IO.File]::WriteAllText($rf, $dir, [Text.Encoding]::UTF8); break }
-            }
-          }
+          $roots = @([Environment]::GetFolderPath('MyDocuments'), [Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('UserProfile')) + @(Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -and $_.Free -ne $null } | ForEach-Object { $_.Root })
+          $roots = @($roots | Where-Object { $_ } | Select-Object -Unique)
+          if (-not $dir) { foreach ($r0 in $roots) { $hit = Get-ChildItem -LiteralPath $r0 -Filter $m -File -Recurse -Depth 6 -Force -ErrorAction SilentlyContinue | Select-Object -First 1; if ($hit) { $dir = $hit.DirectoryName; break } } }
+          # 표시 파일을 못 찾으면, 같은 이름이면서 안에 묶인연락처풀기 폴더가 있는 폴더를 찾는다
+          if (-not $dir -and $n) { foreach ($r0 in $roots) { $hit = Get-ChildItem -LiteralPath $r0 -Directory -Recurse -Depth 5 -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $n -and (Test-Path -LiteralPath (Join-Path $_.FullName '묶인연락처풀기')) } | Select-Object -First 1; if ($hit) { $dir = $hit.FullName; break } } }
+          if ($dir) { [IO.File]::WriteAllText($rf, $dir, [Text.Encoding]::UTF8) }
         }
       }
       if ($dir -and (Test-Path -LiteralPath $dir)) {
-        $in = Join-Path $dir '묶인연락처풀기'; if (Test-Path -LiteralPath $in) { $dir = $in }   # 백업이 실제로 든 안쪽 폴더를 연다
-        Start-Process explorer.exe -ArgumentList ('"' + $dir + '"'); Reply $ctx @{ ok = $true; path = $dir }
+        $root = $dir; $in = Join-Path $dir '묶인연락처풀기'; if (Test-Path -LiteralPath $in) { $dir = $in }   # 백업이 실제로 든 안쪽 폴더를 연다
+        if ($path -eq '/open') { Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $dir + '"') }
+        Reply $ctx @{ ok = $true; path = $dir; root = $root }
       } else { Reply $ctx @{ ok = $false; why = 'notfound' } }
     } elseif ($path -eq '/stop') { New-Item -ItemType File -Force -Path (Join-Path (Target) '.stop') | Out-Null; Reply $ctx @{ ok = $true }
     } else { Reply $ctx @{ ok = $false } }
