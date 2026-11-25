@@ -96,7 +96,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.90';
+const VER = '0.91';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -475,7 +475,13 @@ async function usbTick(){
   step('u3', uKeep ? true : null, uKeep ? `③ PC 보관 위치: ${esc(U.target)}` : `③ PC 보관 위치를 지난번 그대로 하시겠습니까?<br><span class="sub">${esc(U.target)}${U.targetNew ? ' (처음이라 문서 안에 새로 만들 곳입니다)' : ''}</span>`,
     uKeep ? `<button onclick="uKeep=false;usbTick()">바꾸기</button>` : `<button class="pri" onclick="uKeep=true;usbTick()">예, 그대로</button><button onclick="usbPick()">바꾸기</button>`) + ' <button onclick="usbOpen()">📂 열기</button>';
   const ready = U.phone && U.mtp && U.found && uKeep;
-  if (U.busy) step('u4', null, '④ 백업하는 중… (모바일 폰을 뽑지 마세요)', `<button onclick="hget('/stop',true)">■ 멈춤</button>`);
+  // Ver0.91: 백업하는 동안 지금 하는 일 · 지금 단계 · 단계 막대와 % · 전체 %를 보여 준다
+  if (U.busy) { const ph = { list: [1, '모바일 폰 파일 목록 읽기', 0, 10], check: [2, 'PC에 이미 있는지 확인', 10, 20], copy: [3, '복사', 20, 90], compare: [4, '모바일 폰과 PC 비교', 90, 100] }[U.phase] || [0, '준비', 0, 0];
+    const sp = U.total ? Math.min(100, U.done * 100 / U.total) : 0, all = ph[2] + (ph[3] - ph[2]) * sp / 100;
+    const cnt = U.total ? `${U.done.toLocaleString()} / ${U.total.toLocaleString()}개` : U.done ? `${U.done.toLocaleString()}개 읽음` : '';
+    step('u4', null, `④ 지금 하는 일: USB로 백업 (모바일 폰을 뽑지 마세요) · 전체 ${all.toFixed(0)}%<br><span class="sub">지금 단계 ${ph[0]}/4: ${ph[1]}${cnt ? ' · ' + cnt : ''}${U.total ? ' · ' + sp.toFixed(0) + '%' : ''}</span>
+      <div style="height:14px;background:#e5e7eb;border-radius:7px;overflow:hidden;margin:6px 0 2px"><i style="display:block;height:100%;width:${all.toFixed(1)}%;background:#22c55e;transition:width .4s"></i></div>
+      <div class="sub">① 목록 읽기 ${ph[0] > 1 ? '✔' : ph[0] === 1 ? '…' : ''} → ② PC에 있는지 확인 ${ph[0] > 2 ? '✔' : ph[0] === 2 ? '…' : ''} → ③ 복사 ${ph[0] > 3 ? '✔' : ph[0] === 3 ? '…' : ''} → ④ 비교 ${ph[0] === 4 ? '…' : ''}</div>`, `<button onclick="hget('/stop',true)">■ 멈춤</button>`); }
   else step('u4', U.last && U.last.ok ? true : ready ? null : false, U.last && U.last.ok ? `④ 끝났습니다: ${esc(U.last.msg)}` : '④ 백업을 시작하시겠습니까?', `<button class="pri" ${ready ? '' : 'disabled'} onclick="usbGo()">예, 시작</button>`);
   // Ver0.71: ⑤ 비교 결과, ⑥ 복구하는 방법
   step('u5', U.last ? !!U.last.ok : null, U.last ? (U.last.ok ? '⑤ ' + esc(U.last.msg) : '⑤ ' + esc(U.last.msg)) : U.busy ? '⑤ 복사가 끝나면 모바일 폰과 PC를 하나하나 비교합니다' : '⑤ 비교 결과');
@@ -532,7 +538,7 @@ async function cleanPhotos(){
 let usbTellAt = 0;
 function usbTell(){
   const addr = ls('addr'), tok = ls('tok'); if (!addr || !tok || !U || Date.now() - usbTellAt < 2000) return; usbTellAt = Date.now();
-  const st = { helper: true, keep: uKeep, busy: !!U.busy, done: U.done || 0, total: U.total || 0, msg: U.msg || '', last: U.last || null, target: U.target || '' };
+  const st = { helper: true, keep: uKeep, busy: !!U.busy, phase: U.phase || '', done: U.done || 0, total: U.total || 0, msg: U.msg || '', last: U.last || null, target: U.target || '' };
   const c = new AbortController(); setTimeout(() => c.abort(), 1500);
   fetch('http://' + addr + '/usbst?t=' + encodeURIComponent(tok) + '&j=' + encodeURIComponent(JSON.stringify(st)), { signal: c.signal }).catch(() => {});
 }

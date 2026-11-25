@@ -103,11 +103,13 @@ $copy = {
   $r = FindCU $sh
   if (-not $r.cu) { St @{ busy = $false; last = @{ ok = $false; msg = '모바일 폰의 Download\묶인연락처풀기 폴더를 찾지 못했습니다' } }; return }
   $dst = Join-Path $T '묶인연락처풀기'; New-Item -ItemType Directory -Force -Path $dst | Out-Null
-  St @{ busy = $true; done = 0; total = 0; msg = '모바일 폰 파일 목록을 읽는 중…' }
+  St @{ busy = $true; phase = 'list'; done = 0; total = 0; msg = '모바일 폰 파일 목록을 읽는 중…' }
   $list = New-Object System.Collections.ArrayList
-  function Walk($f, $rel) { foreach ($it in $f.Items()) { if ($it.IsFolder) { Walk $it.GetFolder (JP $rel $it.Name) } else { [void]$list.Add(@{ it = $it; rel = $rel; name = $it.Name; size = [int64]("0" + $it.ExtendedProperty('System.Size')) }) } } }
+  # Ver0.91: 단계마다(목록 읽기 → PC에 있는지 확인 → 복사 → 비교) 몇 개째인지 알려 막대와 %가 오르게 한다
+  function Walk($f, $rel) { foreach ($it in $f.Items()) { if ($it.IsFolder) { Walk $it.GetFolder (JP $rel $it.Name) } else { [void]$list.Add(@{ it = $it; rel = $rel; name = $it.Name; size = [int64]("0" + $it.ExtendedProperty('System.Size')) }); if ($list.Count % 500 -eq 0) { St @{ busy = $true; phase = 'list'; done = $list.Count; total = 0; msg = "모바일 폰 파일 목록을 읽는 중: $($list.Count)개" } } } } }
   Walk $r.cu.GetFolder ''
-  $todo = @($list | Where-Object { $p = Join-Path (JP $dst $_.rel) $_.name; -not (Test-Path -LiteralPath $p) -or ($_.size -gt 0 -and (Get-Item -LiteralPath $p).Length -ne $_.size) })
+  $todo = New-Object System.Collections.ArrayList; $ci = 0
+  foreach ($x in $list) { $p = Join-Path (JP $dst $x.rel) $x.name; if (-not (Test-Path -LiteralPath $p) -or ($x.size -gt 0 -and (Get-Item -LiteralPath $p).Length -ne $x.size)) { [void]$todo.Add($x) }; $ci++; if ($ci % 500 -eq 0) { St @{ busy = $true; phase = 'check'; done = $ci; total = $list.Count; msg = "PC에 이미 있는지 확인하는 중: $ci / $($list.Count)개" } } }
   $n = 0; $bad = 0; $t0 = [DateTime]::Now; $bytes = 0
   foreach ($f in $todo) {
     if (Test-Path (Join-Path $T '.stop')) { Remove-Item (Join-Path $T '.stop') -Force; St @{ busy = $false; last = @{ ok = $false; msg = "멈췄습니다. $n / $($todo.Count)개 복사. 다시 시작하면 남은 것만 복사합니다" } }; return }
@@ -120,11 +122,12 @@ $copy = {
     if ($ok -and $f.name -match '^([0-9a-f]{64})') { $h = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower(); if ($h -ne $Matches[1]) { $ok = $false } }   # 사진은 이름의 지문값과 바이트가 같은지
     if (-not $ok) { $bad++ } else { $bytes += $f.size }
     $n++; $sec = ([DateTime]::Now - $t0).TotalSeconds
-    if ($n % 5 -eq 0 -or $n -eq $todo.Count) { St @{ busy = $true; done = $n; total = $todo.Count; msg = "복사하는 중 $n / $($todo.Count)개 ($([math]::Round($bytes/1MB,1))MB, 초당 $([math]::Round($bytes/1MB/[math]::Max($sec,0.1),1))MB)" + $(if ($bad) { " · 문제 $bad개" } else { '' }) } }
+    if ($n % 5 -eq 0 -or $n -eq $todo.Count) { St @{ busy = $true; phase = 'copy'; done = $n; total = $todo.Count; msg = "복사하는 중 $n / $($todo.Count)개 ($([math]::Round($bytes/1MB,1))MB, 초당 $([math]::Round($bytes/1MB/[math]::Max($sec,0.1),1))MB)" + $(if ($bad) { " · 문제 $bad개" } else { '' }) } }
   }
   # Ver0.71: 끝나면 모바일 폰 파일 목록과 PC 파일을 하나하나 비교한다(있는지, 크기가 같은지)
-  St @{ busy = $true; done = $n; total = $todo.Count; msg = '모바일 폰과 PC를 비교하는 중…' }
-  $match = @($list | Where-Object { $p = Join-Path (JP $dst $_.rel) $_.name; (Test-Path -LiteralPath $p) -and ($_.size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $_.size) }).Count
+  St @{ busy = $true; phase = 'compare'; done = 0; total = $list.Count; msg = '모바일 폰과 PC를 비교하는 중…' }
+  $match = 0; $ci = 0
+  foreach ($x in $list) { $p = Join-Path (JP $dst $x.rel) $x.name; if ((Test-Path -LiteralPath $p) -and ($x.size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $x.size)) { $match++ }; $ci++; if ($ci % 500 -eq 0) { St @{ busy = $true; phase = 'compare'; done = $ci; total = $list.Count; msg = "모바일 폰과 PC를 비교하는 중: $ci / $($list.Count)개" } } }
   $perfect = ($bad -eq 0) -and ($match -eq $list.Count)
   $msg = $(if ($perfect) { "완벽합니다. PC와 모바일 폰이 똑같습니다 (파일 $($list.Count)개 모두 같음, 새로 복사 $($todo.Count)개, 사진은 지문값까지 확인)" } else { "다른 것이 있습니다: 모바일 폰 $($list.Count)개 중 PC에 같은 것 $match개, 문제 $bad개. [예, 시작]을 다시 누르면 다른 것만 다시 복사합니다" })
   St @{ busy = $false; done = $n; total = $todo.Count; last = @{ ok = $perfect; msg = $msg; files = $list.Count; match = $match; copied = $todo.Count } }
@@ -143,7 +146,7 @@ while ($L.IsListening) {
     if ($ctx.Request.HttpMethod -eq 'OPTIONS') { Reply $ctx @{}; continue }
     if ($path -eq '/usb') {
       $r = FindCU $sh; $o = @{ ok = $true; phone = $r.phone; mtp = $r.mtp; found = [bool]$r.cu; target = (Target); targetNew = -not (Test-Path (Target)) }
-      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last } }
+      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last } }
       Reply $ctx $o
     } elseif ($path -eq '/pick') {
       Add-Type -AssemblyName System.Windows.Forms
