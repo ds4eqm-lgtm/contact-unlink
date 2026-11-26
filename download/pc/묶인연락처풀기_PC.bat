@@ -91,6 +91,15 @@ $finder = {
     }
     return $r
   }
+  # Ver0.106: 모바일 폰 내장 메모리의 Download 폴더(되살리기용으로 PC → 모바일 폰 보낼 곳)
+  function FindDL($sh) {
+    foreach ($d in $sh.NameSpace(17).Items()) {
+      if (-not $d.IsFolder) { continue }
+      if ("$($d.Path)" -notmatch 'usb#|wpdbusenum|\\\\\?\\') { continue }
+      foreach ($st in $d.GetFolder.Items()) { foreach ($x in $st.GetFolder.Items()) { if ($x.Name -eq 'Download') { return $x } } }
+    }
+    return $null
+  }
 }
 . $finder
 $sh = New-Object -ComObject Shell.Application
@@ -132,6 +141,55 @@ $copy = {
   $msg = $(if ($perfect) { "완벽합니다. PC와 모바일 폰이 똑같습니다 (파일 $($list.Count)개 모두 같음, 새로 복사 $($todo.Count)개, 사진은 지문값까지 확인)" } else { "다른 것이 있습니다: 모바일 폰 $($list.Count)개 중 PC에 같은 것 $match개, 문제 $bad개. [예, 시작]을 다시 누르면 다른 것만 다시 복사합니다" })
   St @{ busy = $false; done = $n; total = $todo.Count; last = @{ ok = $perfect; msg = $msg; files = $list.Count; match = $match; copied = $todo.Count } }
 }
+# ---------- Ver0.106: PC → 모바일 폰 되살리기 (USB) ----------
+# 고른 백업(.json + 같이 만든 vcf·확인결과 + 그 백업이 쓰는 원본 사진)을 모바일 폰 Download\묶인연락처풀기_PC에서 로 보낸다.
+# 이미 같은 크기로 있는 파일은 건너뛰고, 다 보내면 _보내기끝.txt(백업 이름)를 마지막에 보내 모바일 폰 앱이 바로 연락처에 넣게 한다. PC 쪽 파일은 읽기만 한다.
+$send = {
+  param($T, $SF, $finderText, $body)
+  . ([ScriptBlock]::Create($finderText))
+  function Now { return [DateTimeOffset]::Now.ToUnixTimeMilliseconds() }
+  function St($o) { try { if (Test-Path $SF) { $old = Get-Content $SF -Raw -Encoding UTF8 | ConvertFrom-Json; if ($old.last -and -not $o.last) { $o.last = $old.last } } } catch { }; [IO.File]::WriteAllText($SF, ($o | ConvertTo-Json -Compress -Depth 4), [Text.Encoding]::UTF8) }
+  function Sub($f, $name) {
+    $it = $f.ParseName($name); if ($it) { return $it }
+    try { $f.NewFolder($name) } catch { }
+    for ($w = 0; $w -lt 50 -and -not $it; $w++) { Start-Sleep -Milliseconds 200; $it = $f.ParseName($name) }
+    if (-not $it) { $tmp = Join-Path $env:TEMP ('cu_mk_' + [Guid]::NewGuid().ToString('N')); $tf = Join-Path $tmp $name; New-Item -ItemType Directory -Force -Path $tf | Out-Null; New-Item -ItemType File -Force -Path (Join-Path $tf '.keep') | Out-Null; $f.CopyHere($tf, 4 + 16 + 512 + 1024); for ($w = 0; $w -lt 100 -and -not $it; $w++) { Start-Sleep -Milliseconds 300; $it = $f.ParseName($name) } }
+    return $it
+  }
+  $b = $body | ConvertFrom-Json
+  $sh = New-Object -ComObject Shell.Application
+  St @{ busy = $true; phase = 'send'; done = 0; total = $b.files.Count; msg = '모바일 폰 Download 폴더를 찾는 중…' }
+  $dl = FindDL $sh
+  if (-not $dl) { St @{ busy = $false; sendLast = @{ ok = $false; at = (Now); msg = '모바일 폰의 Download 폴더를 찾지 못했습니다. 모바일 폰 알림에서 [파일 전송]을 골라 주세요' } }; return }
+  $top = Sub $dl.GetFolder '묶인연락처풀기_PC에서'
+  if (-not $top) { St @{ busy = $false; sendLast = @{ ok = $false; at = (Now); msg = '모바일 폰에 묶인연락처풀기_PC에서 폴더를 만들지 못했습니다' } }; return }
+  $topF = $top.GetFolder; $ph = $null
+  $srcs = @((Join-Path $T '묶인연락처풀기'))
+  if ($b.root) { $srcs += $b.root; $srcs += (Join-Path $b.root '묶인연락처풀기') }
+  $n = 0; $skip = 0; $bad = 0; $bytes = 0; $t0 = [DateTime]::Now; $tot = $b.files.Count
+  foreach ($rel in $b.files) {
+    $src = $null; foreach ($s0 in $srcs) { $c = Join-Path $s0 ($rel -replace '/', '\'); if (Test-Path -LiteralPath $c) { $src = $c; break } }
+    $n++
+    if (-not $src) { $bad++; continue }
+    $isPh = $rel.StartsWith('사진원본/')
+    if ($isPh -and -not $ph) { $phIt = Sub $topF '사진원본'; if ($phIt) { $ph = $phIt.GetFolder } }
+    $tf = $(if ($isPh) { $ph } else { $topF }); if (-not $tf) { $bad++; continue }
+    $nm = Split-Path $src -Leaf; $len = (Get-Item -LiteralPath $src).Length
+    $have = $tf.ParseName($nm)
+    if ($have -and [int64]("0" + $have.ExtendedProperty('System.Size')) -eq $len) { $skip++ }
+    else {
+      $tf.CopyHere($src, 4 + 16 + 512 + 1024)
+      $ok = $false; for ($w = 0; $w -lt 600; $w++) { Start-Sleep -Milliseconds 200; $it = $tf.ParseName($nm); if ($it -and [int64]("0" + $it.ExtendedProperty('System.Size')) -eq $len) { $ok = $true; break } }
+      if ($ok) { $bytes += $len } else { $bad++ }
+    }
+    if ($n % 5 -eq 0 -or $n -eq $tot) { $sec = ([DateTime]::Now - $t0).TotalSeconds; St @{ busy = $true; phase = 'send'; done = $n; total = $tot; msg = "모바일 폰으로 보내는 중 $n / $tot개 ($([math]::Round($bytes/1MB,1))MB, 초당 $([math]::Round($bytes/1MB/[math]::Max($sec,0.1),1))MB, 이미 있던 것 $skip개)" + $(if ($bad) { " · 문제 $bad개" } else { '' }) } }
+  }
+  if ($bad -eq 0) {
+    $mk = Join-Path $env:TEMP '_보내기끝.txt'; [IO.File]::WriteAllText($mk, "$($b.name)" + $(if ($b.clean) { "`nclean" } else { '' }), (New-Object Text.UTF8Encoding($false)))
+    $topF.CopyHere($mk, 4 + 16 + 512 + 1024); Start-Sleep -Seconds 2
+  }
+  St @{ busy = $false; done = $n; total = $tot; sendLast = @{ ok = ($bad -eq 0); at = (Now); msg = $(if ($bad -eq 0) { "파일 $tot개 (새로 $($tot - $skip)개, 이미 있던 것 $skip개, $([math]::Round($bytes/1MB,1))MB). 모바일 폰 앱이 바로 연락처에 넣습니다" } else { "문제 $bad개가 있어 연락처 넣기를 시작하지 않았습니다. [시작]을 다시 누르면 남은 것만 보냅니다" }) } }
+}
 function Reply($ctx, $obj) {
   $b = [Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Compress -Depth 4))
   $ctx.Response.Headers.Add('Access-Control-Allow-Origin', '*'); $ctx.Response.Headers.Add('Access-Control-Allow-Private-Network', 'true')
@@ -146,7 +204,7 @@ while ($L.IsListening) {
     if ($ctx.Request.HttpMethod -eq 'OPTIONS') { Reply $ctx @{}; continue }
     if ($path -eq '/usb') {
       $r = FindCU $sh; $o = @{ ok = $true; phone = $r.phone; mtp = $r.mtp; found = [bool]$r.cu; target = (Target); targetNew = -not (Test-Path (Target)) }
-      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last } }
+      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last }; if ($st.sendLast) { $o.sendLast = $st.sendLast } }
       Reply $ctx $o
     } elseif ($path -eq '/pick') {
       Add-Type -AssemblyName System.Windows.Forms
@@ -184,6 +242,50 @@ while ($L.IsListening) {
         if ($path -eq '/open') { Start-Process -FilePath 'explorer.exe' -ArgumentList ('"' + $dir + '"') }
         Reply $ctx @{ ok = $true; path = $dir; root = $root }
       } else { Reply $ctx @{ ok = $false; why = 'notfound' } }
+    } elseif ($path -eq '/tophone') {
+      if (-not ($job -and $job.State -eq 'Running')) {
+        $sr = New-Object IO.StreamReader($ctx.Request.InputStream, [Text.Encoding]::UTF8); $body = $sr.ReadToEnd(); $sr.Close()
+        $T = Target; Remove-Item (Join-Path $T '.stop') -Force
+        $job = Start-Job -ScriptBlock $send -ArgumentList $T, $sf, $finder.ToString(), $body
+        Reply $ctx @{ ok = $true }
+      } else { Reply $ctx @{ ok = $false; err = '다른 일(백업)을 하는 중입니다. 끝나면 다시 눌러 주세요' } }
+    } elseif ($path -eq '/wifi') {
+      # Ver0.112: 이 PC가 붙은 와이파이(이름·세기·대역·채널)와 주변 와이파이(이름별 가장 센 것, 센 순서)
+      $o = @{ ok = $true; near = @() }
+      $txt = (netsh wlan show interfaces) 2>$null
+      foreach ($ln in $txt) {
+        if ($ln -match '^\s*SSID\s*:\s*(.+)$') { $o.ssid = $Matches[1].Trim() }
+        elseif ($ln -match ':\s*(\d+)%\s*$') { $o.pct = [int]$Matches[1] }
+        elseif ($ln -match '^\s*(Radio type|무선 장치 유형|라디오 유형)\s*:\s*(.+)$') { $o.radio = $Matches[2].Trim() }
+        elseif ($ln -match '^\s*(Channel|채널)\s*:\s*(\d+)') { $o.ch = [int]$Matches[2] }
+        elseif ($ln -match '^\s*(Band|대역)\s*:\s*(.+)$') { $o.band = $Matches[2].Trim() }
+        elseif ($ln -match '^\s*(Receive rate|수신 속도)[^:]*:\s*([\d.]+)') { $o.mbps = [double]$Matches[2] }
+      }
+      if (-not $o.band -and $o.ch) { $o.band = $(if ($o.ch -gt 14) { '5GHz' } else { '2.4GHz' }) }
+      $best = @{}; $cur = $null; $raw = (netsh wlan show networks mode=bssid) 2>$null
+      foreach ($ln in $raw) {
+        if ($ln -match '^\s*SSID\s+\d+\s*:\s*(.*)$') { $cur = $Matches[1].Trim(); if ($cur -and -not $best.ContainsKey($cur)) { $best[$cur] = @{ ssid = $cur; pct = 0; ch = 0 } } }
+        elseif ($cur -and $ln -match ':\s*(\d+)%\s*$') { $v = [int]$Matches[1]; if ($v -gt $best[$cur].pct) { $best[$cur].pct = $v; $best[$cur].hold = $true } else { $best[$cur].hold = $false } }
+        elseif ($cur -and $ln -match '^\s*(Channel|채널)\s*:\s*(\d+)') { if ($best[$cur].hold) { $best[$cur].ch = [int]$Matches[2] } }
+      }
+      $o.near = @($best.Values | Sort-Object { -$_.pct } | Select-Object -First 8 | ForEach-Object { @{ ssid = $_.ssid; pct = $_.pct; ch = $_.ch } })
+      if (-not $o.near.Count -and ("$raw" -match '위치|location')) { $o.locOff = $true }
+      if (-not $o.ssid -and -not $txt) { $o.wired = $true }
+      Reply $ctx $o
+    } elseif ($path -eq '/update') {
+      # Ver0.110: PC판 [업데이트 확인]/[업데이트]: 새 판이 있으면 받고, 지문값(SHA-256)이 맞을 때만 바꾼다. 화면은 다시 읽으면 새 판
+      $base = 'https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/'; $html = Join-Path $D 'contact-unlink-pc.html'; $vf = Join-Path $D 'ver.txt'; $bat = Join-Path $D '묶인연락처풀기_PC.bat'
+      $go = $ctx.Request.Url.Query -match 'go=1'
+      $j = Invoke-RestMethod -Uri ($base + 'app/version.json?t=' + [DateTime]::Now.Ticks) -TimeoutSec 20
+      $cur = '0.0'; if (Test-Path $vf) { $cur = (Get-Content $vf -Raw).Trim() }
+      function VN($v) { $p = "$v".Split('.'); return [int]$p[0] * 1000 + [int]$p[1] }
+      $o = @{ ok = $true; latest = "$($j.pc)"; cur = $cur; done = $false }
+      if ($go) {
+        $tmp = "$html.new"; Invoke-WebRequest -Uri ($base + 'download/pc/contact-unlink-pc.html?t=' + [DateTime]::Now.Ticks) -OutFile $tmp -UseBasicParsing -TimeoutSec 120
+        if ((Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower() -eq "$($j.pcSha)".ToLower()) { Move-Item -Force $tmp $html; Set-Content -Path $vf -Value $j.pc -Encoding ASCII; $o.done = $true } else { Remove-Item $tmp -Force; $o.ok = $false; $o.err = '받은 파일의 지문값이 맞지 않아 바꾸지 않았습니다. 잠시 뒤 다시 해 주세요' }
+        try { if ($j.batSha -and ((Get-FileHash $bat -Algorithm SHA256).Hash.ToLower() -ne "$($j.batSha)".ToLower())) { $tb = "$bat.new"; Invoke-WebRequest -Uri ($base + 'download/pc/' + [Uri]::EscapeDataString('묶인연락처풀기_PC.bat') + '?t=' + [DateTime]::Now.Ticks) -OutFile $tb -UseBasicParsing -TimeoutSec 60; if ((Get-FileHash $tb -Algorithm SHA256).Hash.ToLower() -eq "$($j.batSha)".ToLower()) { Move-Item -Force $tb $bat; $o.bat = $true } else { Remove-Item $tb -Force } } } catch { }
+      }
+      Reply $ctx $o
     } elseif ($path -eq '/stop') { New-Item -ItemType File -Force -Path (Join-Path (Target) '.stop') | Out-Null; Reply $ctx @{ ok = $true }
     } else { Reply $ctx @{ ok = $false } }
   } catch { try { Reply $ctx @{ ok = $false; err = "$_" } } catch { } }
