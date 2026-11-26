@@ -60,6 +60,7 @@ if ($env:BG -ne '/bg') { if ($b) { Start-Process -FilePath $b -ArgumentList "--a
 try {
   $sfx = Join-Path $D 'usb_status.json'; $busy = $false
   if ((Test-Path $sfx) -and ((Get-Date) - (Get-Item $sfx).LastWriteTime).TotalMinutes -lt 2) { $busy = [bool]((Get-Content $sfx -Raw -Encoding UTF8 | ConvertFrom-Json).busy) }
+  $wfx = Join-Path $D 'wifi_status.json'; if ((Test-Path $wfx) -and ((Get-Date) - (Get-Item $wfx).LastWriteTime).TotalMinutes -lt 5) { if ([bool]((Get-Content $wfx -Raw -Encoding UTF8 | ConvertFrom-Json).busy)) { $busy = $true } }   # Ver0.118: 창 없이 와이파이로 받는 중이면 끊지 않는다
   if (-not $busy) { Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like '*HELP==*' -and $_.ProcessId -ne $PID } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force } }
 } catch { }
 $hc = "`$s=[IO.File]::ReadAllText('$bat',[Text.Encoding]::UTF8); `$m='#=='+'HELP=='; iex `$s.Substring(`$s.LastIndexOf(`$m)+`$m.Length)"
@@ -74,6 +75,22 @@ $D = Join-Path $env:LOCALAPPDATA 'ContactUnlinkPC'
 $L = New-Object Net.HttpListener
 $L.Prefixes.Add('http://localhost:8766/')
 try { $L.Start() } catch { exit }   # 이미 다른 창에서 도우미가 돌고 있으면 그것을 쓴다
+# Ver0.118: 알림 영역(작업 표시줄 오른쪽 아래 ^ 안) 아이콘. 창을 X로 닫아도 여기서 계속 돌며 와이파이 자동 백업을 한다
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$ni = New-Object System.Windows.Forms.NotifyIcon
+$icoP = Join-Path $D 'contact-unlink-pc.ico'; try { $ni.Icon = New-Object System.Drawing.Icon $icoP } catch { $ni.Icon = [System.Drawing.SystemIcons]::Application }
+$ni.Text = '묶인 연락처 풀기 PC: 뒤에서 자동 백업 대기 중'
+$openUi = {
+  $h = Join-Path $D 'contact-unlink-pc.html'; $u = 'file:///' + ($h -replace '\\', '/')
+  $c = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")
+  $br = $c | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+  if ($br) { Start-Process -FilePath $br -ArgumentList "--app=$u" } else { Start-Process $h }
+}
+$cm = New-Object System.Windows.Forms.ContextMenuStrip
+[void]$cm.Items.Add('PC판 창 열기', $null, { & $openUi })
+[void]$cm.Items.Add('지금 와이파이로 백업 받기', $null, { $script:wLast = [DateTime]::MinValue; $script:seen = [DateTime]::Now.AddMinutes(-10); $script:wTick = [DateTime]::MinValue; $ni.ShowBalloonTip(3000, '묶인 연락처 풀기 PC', '모바일 폰을 찾아 바뀐 것만 받습니다', 'Info') })
+[void]$cm.Items.Add('끝내기 (다음에 윈도우를 켜면 다시 켜짐)', $null, { $ni.Visible = $false; try { $L.Stop() } catch { }; [Environment]::Exit(0) })
+$ni.ContextMenuStrip = $cm; $ni.add_DoubleClick({ & $openUi }); $ni.Visible = $true
 $tf = Join-Path $D 'usb_target.txt'
 $sf = Join-Path $D 'usb_status.json'
 $defT = Join-Path ([Environment]::GetFolderPath('MyDocuments')) '연락처보관'
@@ -260,7 +277,9 @@ function Reply($ctx, $obj) {
 }
 while ($L.IsListening) {
   $a = $L.BeginGetContext($null, $null)
-  while (-not $a.AsyncWaitHandle.WaitOne(1000)) { if (([DateTime]::Now - $wTick).TotalSeconds -ge 60) { $wTick = [DateTime]::Now; try { WifiTick } catch { } } }   # Ver0.116: 창이 닫혀도 끝내지 않고 1분마다 모바일 폰을 살펴 저절로 백업
+  while (-not $a.AsyncWaitHandle.WaitOne(200)) { [System.Windows.Forms.Application]::DoEvents()
+    if (([DateTime]::Now - $wTick).TotalSeconds -ge 60) { $wTick = [DateTime]::Now; try { WifiTick } catch { }
+      try { if (Test-Path $wsf) { $ws1 = Get-Content $wsf -Raw -Encoding UTF8 | ConvertFrom-Json; $tx = $(if ($ws1.busy) { '받는 중: ' + $ws1.msg } elseif ($ws1.last) { '마지막: ' + $ws1.last.msg } else { '자동 백업 대기 중' }); $ni.Text = ('묶인 연락처 풀기 PC · ' + $tx).Substring(0, [math]::Min(63, ('묶인 연락처 풀기 PC · ' + $tx).Length)) } } catch { } } }   # Ver0.116: 창이 닫혀도 끝내지 않고 1분마다 모바일 폰을 살펴 저절로 백업
   $ctx = $L.EndGetContext($a); $seen = [DateTime]::Now
   $path = $ctx.Request.Url.AbsolutePath
   try {
