@@ -270,6 +270,7 @@ function WifiTick {
   }
 }
 $wTick = [DateTime]::MinValue
+$uTick = [DateTime]::MinValue; $uWas = $true   # 처음 켤 때 이미 꽂혀 있으면 창을 따로 열지 않는다 (윈도우 시작 때 창이 갑자기 뜨지 않게)
 function Reply($ctx, $obj) {
   $b = [Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Compress -Depth 4))
   $ctx.Response.Headers.Add('Access-Control-Allow-Origin', '*'); $ctx.Response.Headers.Add('Access-Control-Allow-Private-Network', 'true')
@@ -278,6 +279,9 @@ function Reply($ctx, $obj) {
 while ($L.IsListening) {
   $a = $L.BeginGetContext($null, $null)
   while (-not $a.AsyncWaitHandle.WaitOne(200)) { [System.Windows.Forms.Application]::DoEvents()
+    if (([DateTime]::Now - $uTick).TotalSeconds -ge 4) { $uTick = [DateTime]::Now; try { $has = $false; foreach ($d0 in $sh.NameSpace(17).Items()) { if ($d0.IsFolder -and "$($d0.Path)" -match 'usb#|wpdbusenum|\\\\\?\\') { $has = $true; break } }
+        if ($has -and -not $uWas -and ([DateTime]::Now - $seen).TotalSeconds -gt 20) { $ni.ShowBalloonTip(4000, '묶인 연락처 풀기 PC', 'USB로 모바일 폰이 꽂혀 PC판 창을 저절로 엽니다', 'Info'); & $openUi }   # Ver0.122: USB를 꽂으면 바탕화면 아이콘을 켜지 않아도 창이 저절로 열린다
+        $uWas = $has } catch { } }
     if (([DateTime]::Now - $wTick).TotalSeconds -ge 60) { $wTick = [DateTime]::Now; try { WifiTick } catch { }
       try { if (Test-Path $wsf) { $ws1 = Get-Content $wsf -Raw -Encoding UTF8 | ConvertFrom-Json; $tx = $(if ($ws1.busy) { '받는 중: ' + $ws1.msg } elseif ($ws1.last) { '마지막: ' + $ws1.last.msg } else { '자동 백업 대기 중' }); $ni.Text = ('묶인 연락처 풀기 PC · ' + $tx).Substring(0, [math]::Min(63, ('묶인 연락처 풀기 PC · ' + $tx).Length)) } } catch { } } }   # Ver0.116: 창이 닫혀도 끝내지 않고 1분마다 모바일 폰을 살펴 저절로 백업
   $ctx = $L.EndGetContext($a); $seen = [DateTime]::Now
@@ -286,6 +290,12 @@ while ($L.IsListening) {
     if ($ctx.Request.HttpMethod -eq 'OPTIONS') { Reply $ctx @{}; continue }
     if ($path -eq '/usb') {
       $r = FindCU $sh; $o = @{ ok = $true; phone = $r.phone; mtp = $r.mtp; found = [bool]$r.cu; target = (Target); targetNew = -not (Test-Path (Target)) }
+      # Ver0.122: 모바일 폰 앱이 적어 둔 _기기번호.txt 를 읽어 어느 기계인지 알려 준다 (같은 기종이라도 기계마다 번호가 다름)
+      if ($r.cu) { $o.dev = ''; $o.devModel = ''; try { $di = $null; foreach ($y in $r.cu.GetFolder.Items()) { if ($y.Name -eq '_기기번호.txt' -or $y.Name -eq '_기기번호') { $di = $y; break } }
+        if ($di) { $key = "$($r.phone)|$($di.ModifyDate)|$($di.Size)"; if ($script:devKey -ne $key) { $tmpD = Join-Path $D 'devtmp'; Remove-Item $tmpD -Recurse -Force; New-Item -ItemType Directory -Force -Path $tmpD | Out-Null
+            $sh.NameSpace($tmpD).CopyHere($di, 0x614); $tf2 = Join-Path $tmpD '_기기번호.txt'; for ($i = 0; $i -lt 30 -and -not (Test-Path $tf2); $i++) { Start-Sleep -Milliseconds 100 }; Start-Sleep -Milliseconds 200
+            if (Test-Path $tf2) { $ln = @((Get-Content $tf2 -Raw -Encoding UTF8) -split "`n"); $script:devVal = @($ln[0].Trim(), $(if ($ln.Count -gt 1) { $ln[1].Trim() } else { '' })); $script:devKey = $key } }
+          if ($script:devKey -eq $key) { $o.dev = $script:devVal[0]; $o.devModel = $script:devVal[1] } } } catch { } }
       if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last }; if ($st.sendLast) { $o.sendLast = $st.sendLast } }
       Reply $ctx $o
     } elseif ($path -eq '/pick') {
