@@ -2,6 +2,7 @@
 rem 묶인 연락처 풀기 PC판 실행기: 새 판을 묻지 않고 받아 두고, 바탕화면·시작 메뉴 아이콘을 만들고, 프로그램 창을 엽니다.
 setlocal
 set "SELF=%~f0"
+set "BG=%~1"
 powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$s=[IO.File]::ReadAllText($env:SELF,[Text.Encoding]::UTF8); $m='#=='+'PS=='; iex $s.Substring($s.LastIndexOf($m)+$m.Length)"
 exit /b
 #==PS==
@@ -34,6 +35,8 @@ try { if ($j.batSha -and ((Get-FileHash $bat -Algorithm SHA256).Hash.ToLower() -
 # "게시자를 확인하지 못했습니다… 실행하시겠습니까?" 보안 경고가 떴다. 이 프로그램이 만든 자기 파일만 지운다.
 foreach ($uf in @($bat, $html, $ico, "$env:SELF")) { if ($uf -and (Test-Path -LiteralPath $uf)) { try { Unblock-File -LiteralPath $uf } catch { }; try { Remove-Item -LiteralPath $uf -Stream Zone.Identifier -Force -ErrorAction SilentlyContinue } catch { } } }
 $ws = New-Object -ComObject WScript.Shell
+# Ver0.116: 윈도우를 켤 때 저절로(창 없이) PC 도우미만 켠다 → 화면을 누르지 않아도 모바일 폰이 와이파이에 오면 저절로 백업
+try { $sl = $ws0 = New-Object -ComObject WScript.Shell; $st = $ws0.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) '묶인 연락처 풀기 PC (자동 백업).lnk')); $st.TargetPath = $bat; $st.Arguments = '/bg'; $st.WorkingDirectory = $D; $st.WindowStyle = 7; if (Test-Path $ico) { $st.IconLocation = $ico }; $st.Description = '윈도우를 켤 때 묶인 연락처 풀기 PC판 자동 백업(창 없이)'; $st.Save() } catch { }
 foreach ($dir in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) {
   $l = $ws.CreateShortcut((Join-Path $dir '묶인 연락처 풀기 PC.lnk'))
   $l.TargetPath = $bat; $l.WorkingDirectory = $D; $l.WindowStyle = 7
@@ -51,7 +54,7 @@ $url = 'file:///' + ($html -replace '\\', '/')
 $cands = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
            "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe")
 $b = $cands | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
-if ($b) { Start-Process -FilePath $b -ArgumentList "--app=$url" } else { Start-Process $html }
+if ($env:BG -ne '/bg') { if ($b) { Start-Process -FilePath $b -ArgumentList "--app=$url" } else { Start-Process $html } }   # Ver0.116: /bg(윈도우 시작)일 때는 창을 열지 않는다
 # Ver0.61: USB를 살피는 PC 도우미를 숨은 창으로 따로 켠다(이 창은 바로 닫힘)
 # Ver0.73: 예전 판 도우미가 아직 돌고 있으면(새 기능이 없음) 끄고 새 도우미로 바꾼다. USB 복사 중이면 그대로 둔다.
 try {
@@ -190,6 +193,66 @@ $send = {
   }
   St @{ busy = $false; done = $n; total = $tot; sendLast = @{ ok = ($bad -eq 0); at = (Now); msg = $(if ($bad -eq 0) { "파일 $tot개 (새로 $($tot - $skip)개, 이미 있던 것 $skip개, $([math]::Round($bytes/1MB,1))MB). 모바일 폰 앱이 바로 연락처에 넣습니다" } else { "문제 $bad개가 있어 연락처 넣기를 시작하지 않았습니다. [시작]을 다시 누르면 남은 것만 보냅니다" }) } }
 }
+# ---------- Ver0.116: PC판 창이 닫혀 있어도(윈도우 시작 때 저절로 켜짐) 도우미가 직접 와이파이로 모바일 폰 백업을 받는다 ----------
+# 모바일 폰 주소·열쇠·보관 폴더는 PC판 창이 /wifiset 으로 알려 준 것(wifi.json)을 쓴다. 바뀐 것만 받는다(크기 + SHA-256 지문값, 사진은 이름의 지문값).
+# 받은 바이트는 지문값을 확인한 뒤에만 제자리에 놓는다. PC판 창이 열려 있으면(2분 안에 물었으면) 창이 받으므로 도우미는 쉰다.
+$wf = Join-Path $D 'wifi.json'; $wsf = Join-Path $D 'wifi_status.json'; $wjob = $null; $wLast = [DateTime]::MinValue
+$wsync = {
+  param($cfgText, $SF)
+  $ErrorActionPreference = 'SilentlyContinue'
+  function St($o) { [IO.File]::WriteAllText($SF, ($o | ConvertTo-Json -Compress -Depth 4), [Text.Encoding]::UTF8) }
+  function Now { return [DateTimeOffset]::Now.ToUnixTimeMilliseconds() }
+  $cfg = $cfgText | ConvertFrom-Json; $tok = $cfg.tok; $root = $cfg.root
+  if (-not $tok -or -not $root -or -not (Test-Path -LiteralPath $root)) { St @{ busy = $false; last = @{ ok = $false; at = (Now); msg = '보관 폴더나 짝 맺은 열쇠가 없어 쉽니다 (PC판 창을 한 번 열어 주세요)' } }; return }
+  $hc = New-Object Net.Http.HttpClient; $hc.Timeout = [TimeSpan]::FromSeconds(4)
+  function Hello($a) { try { $j = $hc.GetStringAsync("http://$a/hello?t=$tok").Result | ConvertFrom-Json; if ($j.app -eq 'contact-unlink' -and $j.known) { return $j } } catch { }; return $null }
+  $addr = $cfg.addr; $h = $null; if ($addr) { $h = Hello $addr }
+  if (-not $h) { # 주소가 바뀌었으면 같은 공유기 안에서 다시 찾는다
+    $hc2 = New-Object Net.Http.HttpClient; $hc2.Timeout = [TimeSpan]::FromMilliseconds(1500)
+    $pre = @(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | ForEach-Object { ($_.IPAddress -split '\.')[0..2] -join '.' }) | Select-Object -Unique
+    foreach ($p in $pre) { $ts = @{}; for ($i = 1; $i -lt 255; $i++) { $ts["$p.$($i):8765"] = $hc2.GetStringAsync("http://$p.$($i):8765/hello?t=$tok") }
+      try { [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($ts.Values), 3000) | Out-Null } catch { }
+      foreach ($k in $ts.Keys) { $tk = $ts[$k]; if ($tk.Status -eq 'RanToCompletion') { try { $j = $tk.Result | ConvertFrom-Json; if ($j.app -eq 'contact-unlink' -and $j.known) { $addr = $k; $h = $j; break } } catch { } } }
+      if ($h) { break } }
+  }
+  if (-not $h) { St @{ busy = $false; seen = $false; last = @{ ok = $false; at = (Now); msg = '모바일 폰을 찾지 못했습니다 (같은 와이파이, 모바일 폰 앱이 켜져 있어야 합니다)' } }; return }
+  $hc.Timeout = [TimeSpan]::FromMinutes(10)
+  St @{ busy = $true; addr = $addr; phone = $h.name; done = 0; total = 0; msg = '모바일 폰이 파일 목록과 지문값을 만드는 중…' }
+  $list = $hc.GetStringAsync("http://$addr/list?t=$tok").Result | ConvertFrom-Json
+  $B = Join-Path $root '묶인연락처풀기'; New-Item -ItemType Directory -Force -Path (Join-Path $B '사진원본') | Out-Null
+  $need = @(); $n = 0; $seenP = @{}
+  foreach ($f in $list) { if ($seenP[$f.p]) { continue }; $seenP[$f.p] = 1; $n++
+    $lp = Join-Path $B ($f.p -replace '/', '\'); $ok = $false
+    if (Test-Path -LiteralPath $lp) { $fi = Get-Item -LiteralPath $lp; if ($fi.Length -eq [int64]$f.size) { $nm = [IO.Path]::GetFileName($lp); if ($nm.Length -ge 64 -and $nm.Substring(0, 64) -match '^[0-9a-f]{64}$') { $ok = $nm.Substring(0, 64) -eq $f.sha } else { $ok = (Get-FileHash -LiteralPath $lp -Algorithm SHA256).Hash.ToLower() -eq $f.sha } } }
+    if (-not $ok) { $need += $f }
+    if ($n % 500 -eq 0) { St @{ busy = $true; addr = $addr; phone = $h.name; done = 0; total = $list.Count; msg = "PC에 이미 있는 것 확인 중 $n / $($list.Count)" } } }
+  $done = 0; $bad = 0; $bytes = 0; $t0 = [DateTime]::Now; $sha = [Security.Cryptography.SHA256]::Create()
+  foreach ($f in $need) {
+    $lp = Join-Path $B ($f.p -replace '/', '\'); $tmp = "$lp.받는중"
+    try {
+      $buf = $hc.GetByteArrayAsync("http://$addr/file?t=$tok&p=" + [Uri]::EscapeDataString($f.p)).Result
+      $hs = -join ($sha.ComputeHash($buf) | ForEach-Object { $_.ToString('x2') })
+      if ($buf.Length -ne [int64]$f.size -or $hs -ne $f.sha) { throw '받은 바이트가 모바일 폰 원본과 다릅니다' }
+      [IO.File]::WriteAllBytes($tmp, $buf); Move-Item -LiteralPath $tmp -Destination $lp -Force; $bytes += $buf.Length
+    } catch { $bad++; Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
+    $done++
+    if ($done % 20 -eq 0 -or $done -eq $need.Count) { $sec = ([DateTime]::Now - $t0).TotalSeconds; St @{ busy = $true; addr = $addr; phone = $h.name; done = $done; total = $need.Count; msg = "받는 중 $done / $($need.Count) ($([math]::Round($bytes/1MB,1))MB, 초당 $([math]::Round($bytes/1MB/[math]::Max($sec,0.1),1))MB)" + $(if ($bad) { " · 문제 $bad개" } else { '' }) } }
+  }
+  if ($bad -eq 0) { try { $hc.GetStringAsync("http://$addr/done?t=$tok&n=$($need.Count)").Result | Out-Null } catch { } }
+  St @{ busy = $false; addr = $addr; phone = $h.name; last = @{ ok = ($bad -eq 0); at = (Now); files = $list.Count; got = $need.Count; bad = $bad; msg = "PC판 창 없이 저절로 받음: 전체 $($n)개 중 새로 생기거나 바뀐 것 $($need.Count)개" + $(if ($bad) { ", 문제 $bad개 (다음 번에 다시 받습니다)" } else { ', 모두 지문값 확인' }) } }
+}
+function WifiTick {
+  if ($script:wjob -and $script:wjob.State -eq 'Running') { return }
+  if (([DateTime]::Now - $script:seen).TotalMinutes -lt 2) { return }       # PC판 창이 열려 있으면 창이 받는다
+  if (-not (Test-Path $wf)) { return }
+  $want = $false; try { $c = Get-Content $wf -Raw -Encoding UTF8 | ConvertFrom-Json; if ($c.addr -and $c.tok) { $j = Invoke-RestMethod -Uri "http://$($c.addr)/hello?t=$($c.tok)" -TimeoutSec 2; $want = [bool]$j.want } } catch { }
+  if ($want -or ([DateTime]::Now - $script:wLast).TotalMinutes -ge 30) {
+    $script:wLast = [DateTime]::Now
+    if ($script:wjob) { Remove-Job $script:wjob -Force -ErrorAction SilentlyContinue }
+    $script:wjob = Start-Job -ScriptBlock $wsync -ArgumentList (Get-Content $wf -Raw -Encoding UTF8), $wsf
+  }
+}
+$wTick = [DateTime]::MinValue
 function Reply($ctx, $obj) {
   $b = [Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Compress -Depth 4))
   $ctx.Response.Headers.Add('Access-Control-Allow-Origin', '*'); $ctx.Response.Headers.Add('Access-Control-Allow-Private-Network', 'true')
@@ -197,7 +260,7 @@ function Reply($ctx, $obj) {
 }
 while ($L.IsListening) {
   $a = $L.BeginGetContext($null, $null)
-  while (-not $a.AsyncWaitHandle.WaitOne(1000)) { if (([DateTime]::Now - $seen).TotalMinutes -gt 30) { $L.Stop(); exit } }   # 프로그램 창이 30분 동안 안 물으면 끝
+  while (-not $a.AsyncWaitHandle.WaitOne(1000)) { if (([DateTime]::Now - $wTick).TotalSeconds -ge 60) { $wTick = [DateTime]::Now; try { WifiTick } catch { } } }   # Ver0.116: 창이 닫혀도 끝내지 않고 1분마다 모바일 폰을 살펴 저절로 백업
   $ctx = $L.EndGetContext($a); $seen = [DateTime]::Now
   $path = $ctx.Request.Url.AbsolutePath
   try {
@@ -271,6 +334,14 @@ while ($L.IsListening) {
       $o.near = @($best.Values | Sort-Object { -$_.pct } | Select-Object -First 8 | ForEach-Object { @{ ssid = $_.ssid; pct = $_.pct; ch = $_.ch } })
       if (-not $o.near.Count -and ("$raw" -match '위치|location')) { $o.locOff = $true }
       if (-not $o.ssid -and -not $txt) { $o.wired = $true }
+      Reply $ctx $o
+    } elseif ($path -eq '/wifiset') {
+      # Ver0.116: PC판 창이 모바일 폰 주소·열쇠·보관 폴더 전체 경로를 알려 준다(창이 닫혀도 도우미가 저절로 받게)
+      $sr = New-Object IO.StreamReader($ctx.Request.InputStream, [Text.Encoding]::UTF8); $body = $sr.ReadToEnd(); $sr.Close()
+      $o = $body | ConvertFrom-Json; if ($o.tok -and $o.root) { [IO.File]::WriteAllText($wf, $body, [Text.Encoding]::UTF8) }
+      Reply $ctx @{ ok = $true }
+    } elseif ($path -eq '/wifist') {
+      $o = @{ ok = $true; running = [bool]($wjob -and $wjob.State -eq 'Running') }; if (Test-Path $wsf) { $o.st = Get-Content $wsf -Raw -Encoding UTF8 | ConvertFrom-Json }
       Reply $ctx $o
     } elseif ($path -eq '/update') {
       # Ver0.110: PC판 [업데이트 확인]/[업데이트]: 새 판이 있으면 받고, 지문값(SHA-256)이 맞을 때만 바꾼다. 화면은 다시 읽으면 새 판

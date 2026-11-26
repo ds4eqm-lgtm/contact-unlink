@@ -120,7 +120,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.115';
+const VER = '0.116';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -399,8 +399,13 @@ async function autoTick(){
   pairDraw(j);
   const live = !!(j && j.known);
   if (live && !wasLive) jump('wifiCard'); // Ver0.108: 모바일 폰이 와이파이로 들어오면 2번 칸으로
+  // Ver0.116: 창이 닫혀도 PC 도우미가 저절로 받을 수 있게, 모바일 폰 주소·열쇠·보관 폴더 전체 경로를 도우미에 알려 둔다
+  if (live && ls('tok') && pathOf()) { const cfg = JSON.stringify({ addr: ls('addr'), tok: ls('tok'), root: pathOf() }); if (ls('wsetSig') !== cfg) hget('/wifiset', cfg).then(() => ls('wsetSig', cfg)).catch(() => {}); }
+  let HW = null; try { HW = await hget('/wifist?t=' + Date.now()); } catch(e){}
+  const hwTxt = HW && HW.st ? (HW.running ? `PC 도우미가 창 없이 받는 중: ${HW.st.msg || ''}` : HW.st.last ? `창 없이 받은 마지막 백업 (${new Date(HW.st.last.at).toLocaleString()}): ${HW.st.last.msg}` : '') : '';
   if (getting || nRun || $('#bGet').disabled) { wasLive = live; return; }
-  $('#autoSt').textContent = live ? `모바일 폰(${j.name || ls('addr')}) 연결됨 · ${rootOk ? '새로 생긴 백업이 있으면 저절로 받습니다' : '보관 폴더 허락을 누르면 저절로 받습니다'}` : (ls('tok') ? '모바일 폰을 기다리는 중 (모바일 폰 앱을 켜면 저절로 찾습니다)' : '');
+  if (HW && HW.running) { $('#autoSt').textContent = hwTxt + ' (끝나면 이 창이 이어서 확인합니다)'; wasLive = live; return; } // 도우미가 받는 중이면 겹치지 않게 기다린다
+  $('#autoSt').textContent = (hwTxt ? hwTxt + ' · ' : '') + (live ? `모바일 폰(${j.name || ls('addr')}) 연결됨 · ${rootOk ? '새로 생기거나 바뀐 것이 있으면 저절로 받습니다 · 이 창을 닫아도 윈도우를 켜 두면 PC 도우미가 30분마다(모바일 폰에서 [PC로 바로 백업]을 누르면 1분 안에) 저절로 받습니다' : '보관 폴더 허락을 누르면 저절로 받습니다'}` : (ls('tok') ? '모바일 폰을 기다리는 중 (모바일 폰 앱을 켜면 저절로 찾습니다)' : ''));
   // 막 연결됐을 때, 또는 모바일 폰에서 [PC로 바로 백업]을 눌렀을 때, 또는 연결된 채 30분마다 → 저절로 받기
   if (live && rootOk && (!wasLive || j.want || Date.now() - lastAuto > 30 * 60000)) { lastAuto = Date.now(); getting = true; $('#autoSt').textContent = '모바일 폰이 연결되어 지난번 보관 폴더에 저절로 백업하는 중입니다 (새로 생기거나 바뀐 것만, 글자 하나·사진 한 바이트라도 다르면 다시 받음)…'; wifiGet(); }
   wasLive = live;
