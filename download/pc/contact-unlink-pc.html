@@ -31,7 +31,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 <header><span id="ver">Ver0.61</span><h1>묶인 연락처 풀기 PC판</h1><button onclick="updCheck(false)">업데이트 확인</button><button class="pri" id="bUpd" onclick="updCheck(true)">⬆ 업데이트</button><span class="sub" id="upd"></span></header>
 <main>
 <div class="card">
-  <b>1. PC 보관 폴더</b>
+  <b>1. PC 보관 폴더</b> <label style="display:inline-flex;align-items:center;gap:6px;font-weight:700;margin:4px 0"><input type="checkbox" id="rootAutoChk" onchange="ls('rootAuto', this.checked ? '1' : '0');autoChkDraw()"> 모두 자동 <span class="sub" style="font-weight:400">(바꾸지 않으면 지난번 폴더 그대로 저절로 씀. 끄면 켤 때마다 폴더를 확인합니다)</span></label>
   <div class="sub">모바일 폰 백업을 보관할 PC 폴더를 한 번 골라 주세요(예: 문서 안에 "연락처보관" 폴더를 새로 만들어 고르기). 그 안에 모바일 폰과 똑같이 "묶인연락처풀기" 폴더가 생깁니다.</div>
   <div class="row"><button class="pri" onclick="pickRoot()">보관 폴더 고르기</button><span id="rootName" class="sub">아직 고르지 않았습니다</span><button id="regrant" style="display:none" onclick="regrant()" title="브라우저 보안 때문에 PC판 창을 새로 열면 보관 폴더에 쓰기를 다시 묻습니다. 허락 창에서 [방문할 때마다 허용]을 고르면 다음부터 묻지 않습니다. 허락하지 않아도 PC 도우미가 창 없이(허락 없이) 와이파이 백업을 계속합니다.">이 폴더 다시 쓰기 허락</button><button id="regrantQ" style="display:none" onclick="alert(this.title)" title="브라우저 보안 때문에 PC판 창을 새로 열면 보관 폴더에 쓰기를 다시 묻습니다. 허락 창에서 [방문할 때마다 허용]을 고르면 다음부터 묻지 않습니다. 허락하지 않아도 PC 도우미가 창 없이(허락 없이) 와이파이 백업을 계속합니다.">? 설명</button><button id="openRoot" onclick="openRoot()">📂 보관 폴더 열기</button></div>
   <div id="rootPath" class="row" style="display:none;align-items:center"><span class="sub">위치:</span><code id="rootPathTxt" style="user-select:all;background:#f1f5f9;padding:4px 8px;border-radius:6px;word-break:break-all;flex:1"></code><button id="cpPath" onclick="copyPath()" disabled>📋 경로 복사</button></div>
@@ -39,7 +39,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </div>
 
 <div class="card" id="wifiCard">
-  <b>2. 모바일 폰 → PC (와이파이)</b>
+  <b>2. 모바일 폰 → PC (와이파이)</b> <label style="display:inline-flex;align-items:center;gap:6px;font-weight:700;margin:4px 0"><input type="checkbox" id="wifiAutoChk" onchange="ls('wifiAuto', this.checked ? '1' : '0');autoChkDraw()"> 모두 자동 <span class="sub" style="font-weight:400">(모바일 폰이 와이파이에 오면 지금 설정 그대로 5,4,3,2,1 뒤 저절로 받음)</span></label>
   <div class="sub">누르실 것 없습니다. 이 PC판을 켜 두고 모바일 폰 앱을 켜면, PC가 같은 와이파이에서 모바일 폰을 저절로 찾아 아래 불이 차례로 켜지고, 지난번 보관 폴더에 그대로 백업합니다(새로 생기거나 바뀐 것만. 이름·전화번호·메일·홈페이지·메모·사진 중 글자·마침표·띄어쓰기 하나, 사진 한 바이트만 달라도 바뀐 것으로 보고 다시 받습니다. 파일마다 SHA-256 지문값으로 엄격하게 비교).
     처음 보는 모바일 폰이면 "백업할까요?"를 한 번 묻고, 번호 6자리를 한 번만 넣으면 다음부터는 묻지 않습니다.</div>
   <div id="newAsk" class="rule" style="display:none;border:2px solid #2563eb;padding:10px;border-radius:10px;margin:8px 0"></div>
@@ -81,7 +81,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </div>
 
 <div class="card" id="newCard">
-  <b>4. 새 모바일 폰으로 옮기기 (백업을 보내고 바로 연락처에 넣기)</b>
+  <b>4. 새 모바일 폰으로 옮기기 (백업을 보내고 바로 연락처에 넣기)</b> <label style="display:inline-flex;align-items:center;gap:6px;font-weight:700;margin:4px 0"><input type="checkbox" id="newAutoChk" onchange="ls('newAuto', this.checked ? '1' : '0');autoChkDraw()"> 모두 자동 <span class="sub" style="font-weight:400">(새 모바일 폰이 보이면 5,4,3,2,1 뒤 저절로 PC 백업 넣기)</span></label>
   <div class="sub">새 모바일 폰을 같은 와이파이에 연결하고 아래 차례대로 하면, 단추 하나로 보내기부터 연락처에 넣기까지 끝납니다. 끝나면 새 모바일 폰의 연락처 앱에서 바로 쓰시면 됩니다. 새 모바일 폰에 원래 있던 옛 연락처(모바일 폰·SIM 저장분)는 먼저 원본 그대로 백업해 두고 지운 뒤 넣습니다 (구글 계정 연락처는 그대로).</div>
   <div class="sub" style="margin:6px 0;padding:8px 10px;background:#fff7d6;border-radius:10px;color:#7a5a00;font-weight:700">📵 백업·보내기 중에는 모바일 폰 화면은 꺼도 됩니다. 모바일 폰 최근 앱 화면의 [모두 닫기]는 누르지 마세요. 모바일 폰 앱이 꺼져 멈춥니다.</div>
   <div class="usb" id="nSteps"></div>
@@ -122,7 +122,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.119';
+const VER = '0.120';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -413,7 +413,7 @@ function askNew(h, j){
   e.style.display = 'block';
   // Ver0.119: 연락처가 거의 없는 새 모바일 폰이면 5, 4, 3, 2, 1 뒤 묻지 않고 저절로 "PC 백업 넣기"를 시작한다. [■ 멈춤]으로 막을 수 있다
   clearInterval(askCd); askCd = null;
-  if (few) { let n = 5; const cd = () => { const c = document.getElementById('askCd'); if (c) c.innerHTML = n > 0 ? `${n} … 자동 시작 <button onclick="clearInterval(askCd);askCd=null;this.parentNode.textContent='자동 시작을 멈췄습니다. [예, PC 백업을 이 모바일 폰에 넣기]를 누르면 시작합니다'">■ 멈춤 (자동 시작 안 함)</button>` : ''; };
+  if (few && ls('newAuto') !== '0') { let n = 5; const cd = () => { const c = document.getElementById('askCd'); if (c) c.innerHTML = n > 0 ? `${n} … 자동 시작 <button onclick="clearInterval(askCd);askCd=null;this.parentNode.textContent='자동 시작을 멈췄습니다. [예, PC 백업을 이 모바일 폰에 넣기]를 누르면 시작합니다'">■ 멈춤 (자동 시작 안 함)</button>` : ''; };
     askCd = setInterval(() => { n--; if (n <= 0) { clearInterval(askCd); askCd = null; e.style.display = 'none'; otherGo({ addr: h, name: j.name || '' }, 'move'); } else cd(); }, 1000); setTimeout(cd, 0); }
   e.innerHTML = `<b>새 모바일 폰이 보입니다: ${esc(j.name || h)} (연락처 ${j.cnt != null ? j.cnt.toLocaleString() + '개' : '?'})</b><div class="sub">${few ? '연락처가 거의 없는 새 모바일 폰입니다. 5, 4, 3, 2, 1 뒤 저절로 PC 백업을 넣습니다 (아래 단추는 수동)' : '이 모바일 폰을 백업할까요? (다른 모바일 폰 백업은 저장할 폴더를 직접 골라야 해서 자동으로 시작하지 않습니다)'}</div>${few ? '<div id="askCd" style="font-size:20px;color:#2563eb;margin:4px 0"></div>' : ''}
     <div class="row">${few ? `<button class="pri" onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'move')">예, PC 백업을 이 모바일 폰에 넣기 (수동 시작)</button><button onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'backup')">이 모바일 폰 백업하기 (저장할 곳을 고릅니다)</button>`
@@ -435,6 +435,9 @@ async function autoTick(){
   if (HW && HW.running) { $('#autoSt').textContent = hwTxt + ' (끝나면 이 창이 이어서 확인합니다)'; wasLive = live; return; } // 도우미가 받는 중이면 겹치지 않게 기다린다
   $('#autoSt').textContent = (hwTxt ? hwTxt + ' · ' : '') + (live ? `모바일 폰(${j.name || ls('addr')}) 연결됨 · ${rootOk ? '새로 생기거나 바뀐 것이 있으면 저절로 받습니다 · 이 창을 닫아도 윈도우를 켜 두면 PC 도우미가 30분마다(모바일 폰에서 [PC로 바로 백업]을 누르면 1분 안에) 저절로 받습니다' : '보관 폴더 허락을 누르면 저절로 받습니다'}` : (ls('tok') ? '모바일 폰을 기다리는 중 (모바일 폰 앱을 켜면 저절로 찾습니다)' : ''));
   // 막 연결됐을 때, 또는 모바일 폰에서 [PC로 바로 백업]을 눌렀을 때, 또는 연결된 채 30분마다 → 저절로 받기
+  if (live && j.ver && window.LATEST && vnum(j.ver) < vnum(LATEST) && Date.now() - (window.updPh || 0) > 30 * 60000) { window.updPh = Date.now(); fetch(phone() + '/upd?' + auth()).catch(() => {}); } // Ver0.120: 모바일 폰 앱이 옛 판이면 바로 새 판을 받게 알린다
+  if (ls('rootAuto') === '0' && !window.rootOkNow && live) { $('#autoSt').innerHTML = `보관 폴더를 지난번 그대로 쓸까요? <code>${esc(pathOf() || (root ? root.name : ''))}</code> <button class="pri" onclick="window.rootOkNow=true;autoTick()">예, 그대로</button> <button onclick="pickRoot()">바꾸기</button>`; wasLive = false; return; } // Ver0.120: 1번 모두 자동을 끄면 켤 때마다 폴더를 확인
+  if (ls('wifiAuto') === '0') { if (live) $('#autoSt').textContent += ' · 모두 자동이 꺼져 있어 [모바일 폰에서 받기]를 눌러야 받습니다'; wasLive = live; return; }
   if (live && rootOk && (!wasLive || j.want || Date.now() - lastAuto > 30 * 60000)) { lastAuto = Date.now(); getting = true; $('#autoSt').textContent = '모바일 폰이 연결되어 지난번 보관 폴더에 저절로 백업하는 중입니다 (새로 생기거나 바뀐 것만, 글자 하나·사진 한 바이트라도 다르면 다시 받음)…'; wifiGet(); }
   wasLive = live;
 }
@@ -642,7 +645,7 @@ async function updCheck(go, quiet){
   try {
     if (!quiet) e.innerHTML = '새 판이 있는지 확인하는 중…';
     const j = await (await fetch('https://raw.githubusercontent.com/ds4eqm-lgtm/contact-unlink/main/app/version.json?t=' + Date.now())).json();
-    const newer = j.pc && vnum(j.pc) > vnum(VER);
+    window.LATEST = j.ver || j.pc; const newer = j.pc && vnum(j.pc) > vnum(VER);
     if (!newer && !go) { if (!quiet) e.innerHTML = `<span class="ok">✔ 지금 Ver${VER}이 최신입니다</span>`; return; }
     if (!newer && go) { e.innerHTML = `<span class="ok">✔ 지금 Ver${VER}이 최신이라 바꿀 것이 없습니다</span>`; return; }
     const workNow = () => getting || nRun || rRun || (U && U.busy) || $('#bGet').disabled;
@@ -723,7 +726,17 @@ function bothDraw(){ let w = null, u = null; try { w = JSON.parse(ls('sumW') || 
       : `<span class="${w.ok && u.ok ? 'ok' : 'bad'}">와이파이 ↔ USB 비교: 와이파이 ${w.match} / ${w.files}개 (${t(w)}) · USB ${u.match} / ${u.files}개 (${t(u)})${w.ok && u.ok ? ' · 두 쪽 모두 원본과 짝은 맞습니다. 개수 차이는 백업한 때가 다르거나, USB에서는 안 보이는 숨은 사진 폴더 때문입니다' : ' · 다른 것이 있는 쪽을 한 번 더 받으면 맞춰집니다'}</span>`; }
   else if (w || u) h = `<span class="sub">${w ? '와이파이' : 'USB'} 백업 결과만 있습니다 (${(w || u).match} / ${(w || u).files}개). 다른 쪽으로도 받으면 두 결과가 같은 짝인지 여기에 보여 드립니다</span>`;
   for (const id of ['bothW', 'bothU']) { const e = document.getElementById(id); if (e) e.innerHTML = h; } }
-function jump(id){ const e = document.getElementById(id); if (!e || Date.now() - jumpAt < 3000) return; jumpAt = Date.now(); e.scrollIntoView({ behavior: 'smooth', block: 'start' }); e.style.transition = 'box-shadow .6s'; e.style.boxShadow = '0 0 0 4px #39ff6a'; setTimeout(() => e.style.boxShadow = '', 2500); }
+function autoChkDraw(){ for (const k of ['rootAuto', 'wifiAuto', 'newAuto']) { const e = document.getElementById(k + 'Chk'); if (e) e.checked = ls(k) !== '0'; } }
+setTimeout(autoChkDraw, 0);
+// Ver0.120: 대표님이 화면을 보고 있거나(1분 안에 스크롤·누름) 하면 화면을 옮기지 않고, 위에 작은 알림만 띄운다
+let userAt = 0; for (const ev of ['wheel', 'touchmove', 'keydown', 'pointerdown', 'scroll']) window.addEventListener(ev, e => { if (ev !== 'scroll' || !jumpBusy) userAt = Date.now(); }, { passive: true, capture: true });
+let jumpBusy = false;
+function jumpNote(id, txt){ let n = document.getElementById('jumpNote'); if (!n) { n = document.createElement('div'); n.id = 'jumpNote'; n.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#0b57d0;color:#fff;padding:10px 14px;border-radius:12px;z-index:99;font-weight:700;box-shadow:0 4px 14px #0004;max-width:92vw'; document.body.appendChild(n); }
+  n.innerHTML = `${txt} <button onclick="jumpGo('${id}')" style="margin-left:8px">가 보기</button> <button onclick="this.parentNode.remove()">닫기</button>`; clearTimeout(n._t); n._t = setTimeout(() => n.remove(), 15000); }
+function jumpGo(id){ const n = document.getElementById('jumpNote'); if (n) n.remove(); const e = document.getElementById(id); if (!e) return; jumpBusy = true; e.scrollIntoView({ behavior: 'smooth', block: 'start' }); setTimeout(() => jumpBusy = false, 1500); e.style.transition = 'box-shadow .6s'; e.style.boxShadow = '0 0 0 4px #39ff6a'; setTimeout(() => e.style.boxShadow = '', 2500); }
+function jump(id){ const names = { wifiCard: '2번 (와이파이)', usbCard: '3번 (USB)', newCard: '4번 (새 모바일 폰)', rCard: '5번 (USB 되살리기)' };
+  if (Date.now() - userAt < 60000) { jumpNote(id, `${names[id] || id}에서 일이 시작됐습니다`); return; } return jump0(id); }
+function jump0(id){ const e = document.getElementById(id); if (!e || Date.now() - jumpAt < 3000) return; jumpAt = Date.now(); jumpBusy = true; setTimeout(() => jumpBusy = false, 1500); e.scrollIntoView({ behavior: 'smooth', block: 'start' }); e.style.transition = 'box-shadow .6s'; e.style.boxShadow = '0 0 0 4px #39ff6a'; setTimeout(() => e.style.boxShadow = '', 2500); }
 // ---------- Ver0.106: 5, 4, 3, 2, 1 자동 시작 ----------
 let uKeep = ls('uKeep') === '1', uSess = null, uRun = null, rRun = null; const CD = {};
 function cdStart(k, fn){ if (CD[k]) return; CD[k] = { n: 5, fn }; CD[k].t = setInterval(() => { const c = CD[k]; if (!c) return; c.n--; if (c.n <= 0) { clearInterval(c.t); delete CD[k]; fn(); } else usbTick(); }, 1000); }
