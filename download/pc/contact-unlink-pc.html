@@ -122,7 +122,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.118';
+const VER = '0.119';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -406,13 +406,18 @@ async function otherGo(h, what){
     ls('addr', sv.addr || null); if (sv.tok) ls('tok', sv.tok); else ls('tok', null); $('#addr').value = sv.addr || ''; PH = sv.addr || ''; root = sv.root; rootPath = sv.rootPath; getting = false; otherRun = false; showRoot(); listBackups();
   }
 }
+let askCd = null;
 function askNew(h, j){
   const e = $('#newAsk'); if (!e) return; jump(j.cnt != null && j.cnt < 20 ? 'newCard' : 'wifiCard');
   const few = j.cnt != null && j.cnt < 20;
   e.style.display = 'block';
-  e.innerHTML = `<b>새 모바일 폰이 보입니다: ${esc(j.name || h)} (연락처 ${j.cnt != null ? j.cnt.toLocaleString() + '개' : '?'})</b><div class="sub">${few ? '연락처가 거의 없는 새 모바일 폰입니다. PC 백업을 넣으시겠습니까?' : '이 모바일 폰을 백업할까요?'}</div>
-    <div class="row">${few ? `<button class="pri" onclick="$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'move')">예, PC 백업을 이 모바일 폰에 넣기</button><button onclick="$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'backup')">이 모바일 폰 백업하기 (저장할 곳을 고릅니다)</button>`
-      : `<button class="pri" onclick="$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'backup')">예, 백업하기 (저장할 곳을 고릅니다)</button><button onclick="$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'move')">PC 백업을 이 모바일 폰에 넣기</button>`}<button onclick="$('#newAsk').style.display='none'">아니요</button></div>`;
+  // Ver0.119: 연락처가 거의 없는 새 모바일 폰이면 5, 4, 3, 2, 1 뒤 묻지 않고 저절로 "PC 백업 넣기"를 시작한다. [■ 멈춤]으로 막을 수 있다
+  clearInterval(askCd); askCd = null;
+  if (few) { let n = 5; const cd = () => { const c = document.getElementById('askCd'); if (c) c.innerHTML = n > 0 ? `${n} … 자동 시작 <button onclick="clearInterval(askCd);askCd=null;this.parentNode.textContent='자동 시작을 멈췄습니다. [예, PC 백업을 이 모바일 폰에 넣기]를 누르면 시작합니다'">■ 멈춤 (자동 시작 안 함)</button>` : ''; };
+    askCd = setInterval(() => { n--; if (n <= 0) { clearInterval(askCd); askCd = null; e.style.display = 'none'; otherGo({ addr: h, name: j.name || '' }, 'move'); } else cd(); }, 1000); setTimeout(cd, 0); }
+  e.innerHTML = `<b>새 모바일 폰이 보입니다: ${esc(j.name || h)} (연락처 ${j.cnt != null ? j.cnt.toLocaleString() + '개' : '?'})</b><div class="sub">${few ? '연락처가 거의 없는 새 모바일 폰입니다. 5, 4, 3, 2, 1 뒤 저절로 PC 백업을 넣습니다 (아래 단추는 수동)' : '이 모바일 폰을 백업할까요? (다른 모바일 폰 백업은 저장할 폴더를 직접 골라야 해서 자동으로 시작하지 않습니다)'}</div>${few ? '<div id="askCd" style="font-size:20px;color:#2563eb;margin:4px 0"></div>' : ''}
+    <div class="row">${few ? `<button class="pri" onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'move')">예, PC 백업을 이 모바일 폰에 넣기 (수동 시작)</button><button onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'backup')">이 모바일 폰 백업하기 (저장할 곳을 고릅니다)</button>`
+      : `<button class="pri" onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'backup')">예, 백업하기 (저장할 곳을 고릅니다)</button><button onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none';otherGo({addr:'${h}',name:'${esc(j.name || '')}'},'move')">PC 백업을 이 모바일 폰에 넣기</button>`}<button onclick="clearInterval(askCd);askCd=null;$('#newAsk').style.display='none'">아니요</button></div>`;
 }
 async function autoTick(){
   if (otherRun) return; // Ver0.117: 다른 모바일 폰을 다루는 동안은 대표님 모바일 폰 자동 백업을 쉰다
