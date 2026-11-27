@@ -123,7 +123,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.123';
+const VER = '0.125';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -937,7 +937,7 @@ const TIP = [
   // Ver0.83~0.85: 설명 말풍선 = 오른쪽 아래 [닫기], 위 손잡이를 끌어 옮기면 그 자리에 고정(저절로 안 닫힘), [복사] 단추·오른쪽 마우스로 복사, 글자를 끌어 골라 복사도 됨
   const tip = document.createElement('div'); tip.id = 'tipBox';
   tip.style.cssText = 'position:fixed;z-index:50;width:360px;max-width:calc(100vw - 16px);background:#102a43;color:#fff;padding:0 12px 10px;border-radius:10px;font-size:14px;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none';
-  tip.innerHTML = '<div id="tipHand" title="끌어서 옮기면 그 자리에 고정됩니다" style="text-align:center;color:#9fb3c8;font-size:12px;padding:4px 0;cursor:move;user-select:none">⠿ 끌어서 옮기기</div><div id="tipTxt" style="user-select:text"></div><div style="display:flex;gap:6px;align-items:center;margin-top:8px"><span id="tipSt" style="flex:1;font-size:12px;color:#cfe3ff"></span><button id="tipDay" style="font-size:13px;padding:4px 10px">오늘 열지 않음</button><button id="tipCp" style="font-size:13px;padding:4px 10px">📋 복사</button><button id="tipX" style="font-size:13px;padding:4px 10px">✕ 닫기</button></div>';
+  tip.innerHTML = '<div id="tipHand" title="끌어서 옮기면 그 자리에 고정됩니다" style="text-align:center;color:#9fb3c8;font-size:12px;padding:4px 0;cursor:move;user-select:none">⠿ 끌어서 옮기기</div><div id="tipTxt" style="user-select:text"></div><div style="display:flex;gap:6px;align-items:center;margin-top:8px"><span id="tipSt" style="flex:1;font-size:12px;color:#cfe3ff"></span><button id="tipDay" style="font-size:13px;padding:4px 10px">오늘은 안 보기</button><button id="tipCp" style="font-size:13px;padding:4px 10px">📋 복사</button><button id="tipX" style="font-size:13px;padding:4px 10px">✕ 닫기</button></div>';
   document.body.appendChild(tip);
   const tTxt = tip.querySelector('#tipTxt'), tSt = tip.querySelector('#tipSt'); let pinned = false, tipHide = 0;
   // Ver0.121: 단추(굵은 것·작은 것 모두), 펼치기 제목, 불 켜지는 단계 줄, 모두 자동 체크 = 어디든 마우스를 대거나 누르면 설명
@@ -976,10 +976,15 @@ const TIP = [
     const x = STIPS.find(([k]) => t.includes(k)); return x ? x[1] : null; };
   const close = () => { tip.style.display = 'none'; pinned = false; clearTimeout(tipHide); };
   const copy = () => { const t = tTxt.textContent; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { tSt.textContent = '복사했습니다'; }, () => { prompt('복사해 주세요', t); }); };
-  const hold = () => { if (pinned) return; clearTimeout(tipHide); const sec = Math.max(5, Math.round(tTxt.textContent.length / 9)); tSt.textContent = sec + '초 뒤 저절로 닫힙니다'; tipHide = setTimeout(close, sec * 1000); };
+  const hold = () => { clearTimeout(tipHide); tSt.textContent = pinned ? '📌 고정됨 · [닫기]를 누를 때까지 떠 있습니다' : '[✕ 닫기]를 누를 때까지 떠 있습니다 · 위를 끌어 옮기면 그 자리에 고정'; }; // Ver0.124: 저절로 닫히지 않는다
   // Ver0.88: [오늘 열지 않음] = 오늘 하루 설명 말풍선을 띄우지 않음(내일 다시 뜸)
   const today = () => new Date().toLocaleDateString('ko-KR'); const dayOff = () => { try { return localStorage.getItem('tipDay') === today(); } catch(e) { return false; } };
-  tip.querySelector('#tipDay').onclick = () => { try { localStorage.setItem('tipDay', today()); } catch(e){} close(); };
+  // Ver0.124: 설명을 꺼 두면 오른쪽 아래에 [💬 설명 다시 켜기]가 보인다. 새 판이 오면 한 번 다시 켠다
+  try { if (localStorage.getItem('tipReset124') !== '1') { localStorage.removeItem('tipDay'); localStorage.setItem('tipReset124', '1'); } } catch(e){}
+  const onBtn = document.createElement('button'); onBtn.id = 'tipOn'; onBtn.textContent = '💬 설명 다시 켜기'; onBtn.style.cssText = 'position:fixed;right:10px;bottom:10px;z-index:49;font-size:13px;padding:6px 10px;display:none';
+  onBtn.onclick = () => { try { localStorage.removeItem('tipDay'); } catch(e){} onBtn.style.display = 'none'; }; document.body.appendChild(onBtn);
+  const onDraw = () => { onBtn.style.display = dayOff() ? 'block' : 'none'; }; setTimeout(onDraw, 0);
+  tip.querySelector('#tipDay').onclick = () => { try { localStorage.setItem('tipDay', today()); } catch(e){} close(); onDraw(); };
   tip.querySelector('#tipX').onclick = close; tip.querySelector('#tipCp').onclick = copy;
   tip.addEventListener('contextmenu', e => { if (!String(getSelection())) { e.preventDefault(); copy(); } }); // 오른쪽 마우스 = 설명 복사(글자를 골랐으면 브라우저 메뉴)
   tip.addEventListener('mouseenter', () => { clearTimeout(tipHide); if (!pinned) tSt.textContent = '🖱 마우스를 얹고 있는 동안은 닫히지 않습니다'; }); // Ver0.89
@@ -999,10 +1004,10 @@ const TIP = [
     const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); pinned = true; clearTimeout(tipHide); tSt.textContent = '📌 고정됨 · [닫기]를 누를 때까지 떠 있습니다'; };
     document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); });
   const SEL = 'button,summary,.st,label,#pairSt > div';
-  document.addEventListener('mouseover', e => { if (pinned || dayOff()) return; const b = e.target.closest(SEL); if (!b) return; const t = find(b); if (!t) return; clearTimeout(tipHide);
-    tTxt.textContent = t; tSt.textContent = ''; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + tip.offsetHeight > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = Math.max(0, y) + 'px'; });
-  document.addEventListener('mouseout', e => { const b = e.target.closest(SEL); if (b && !tip.contains(b)) hold(); });
-  document.addEventListener('click', e => { const b = e.target.closest(SEL); if (b && !tip.contains(b) && !dayOff()) { const t = find(b); if (t && !pinned) { tTxt.textContent = t; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + tip.offsetHeight > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = Math.max(0, y) + 'px'; hold(); } } }, true);
+  document.addEventListener('mouseover', e => { if (dayOff()) return; const b = e.target.closest(SEL); if (!b || b.id === 'tipOn') return; const t = find(b); if (!t) return; clearTimeout(tipHide);
+    tTxt.textContent = t; tip.style.display = 'block'; hold(); if (pinned) return; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + tip.offsetHeight > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = Math.max(0, y) + 'px'; });
+
+  document.addEventListener('click', e => { const b = e.target.closest(SEL); if (b && !tip.contains(b) && b.id !== 'tipOn' && !dayOff()) { const t = find(b); if (t && pinned) { tTxt.textContent = t; tip.style.display = 'block'; hold(); } else if (t) { tTxt.textContent = t; tip.style.display = 'block'; const r = b.getBoundingClientRect(); let y = r.bottom + 8; if (y + tip.offsetHeight > innerHeight) y = r.top - tip.offsetHeight - 8; tip.style.left = Math.max(8, Math.min(innerWidth - 370, r.left)) + 'px'; tip.style.top = Math.max(0, y) + 'px'; hold(); } } }, true);
 })();
 </script>
 </body></html>
