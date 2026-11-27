@@ -123,7 +123,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.127';
+const VER = '0.128';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -746,12 +746,12 @@ async function usbTick(){
     (uKeep ? '' : `<button class="pri" onclick="cdStop('u3');uKeep=true;ls('uKeep','1');usbTick()">예, 그대로</button>`) + `<button onclick="cdStop('u3');usbPick()">바꾸기</button> <button onclick="usbOpen()">📂 열기</button>` + (cdOn('u3') ? `<button onclick="cdStop('u3');if(uSess)uSess.started=true;usbTick()">■ 멈춤 (자동 시작 안 함)</button>` : ''));
   const ready = U.phone && U.mtp && U.found && uKeep;
   if (U.busy) { if (!uRun) uRun = { t0: Date.now() };
-    const ph = { list: [1, '모바일 폰 파일 목록 읽기', 0, 10], check: [2, 'PC에 이미 있는지 확인', 10, 20], copy: [3, '복사 (사진은 지문값으로 확인)', 20, 90], compare: [4, '모바일 폰과 PC 비교 (개수·크기·사진 지문값)', 90, 100], send: [3, 'PC → 모바일 폰으로 보내기', 0, 100] }[U.phase] || [0, '준비', 0, 0];
+    const ph = { walk: [1, U.resumed ? `이어서 하기: 지난번에 끝낸 ${(+U.resumed).toLocaleString()}개는 건너뛰고 남은 것만 복사` : '모바일 폰 파일을 하나씩 보며 PC에 없는 것만 바로 복사', 0, 90], list: [1, '모바일 폰 파일 목록 읽기', 0, 10], check: [2, 'PC에 이미 있는지 확인', 10, 20], copy: [3, '복사 (사진은 지문값으로 확인)', 20, 90], compare: [4, '모바일 폰과 PC 비교 (개수·크기·사진 지문값)', 90, 100], send: [3, 'PC → 모바일 폰으로 보내기', 0, 100] }[U.phase] || [0, '준비', 0, 0];
     const sp = U.total ? Math.min(100, U.done * 100 / U.total) : 0, all = ph[2] + (ph[3] - ph[2]) * sp / 100;
     const cnt = U.total ? `${U.done.toLocaleString()} / ${U.total.toLocaleString()}개` : U.done ? `${U.done.toLocaleString()}개 읽음` : '';
-    step(U.phase === 'send' ? 'r4' : 'u4', null, `${U.phase === 'send' ? '④' : '④'} 지금 하는 일: ${U.phase === 'send' ? 'PC → 모바일 폰 보내기' : 'USB로 백업'} (모바일 폰을 뽑지 마세요) · 전체 ${all.toFixed(0)}%<br><span class="sub">지금 단계 ${ph[0]}/4: ${ph[1]}${cnt ? ' · ' + cnt : ''}${U.total ? ' · ' + sp.toFixed(0) + '%' : ''}<br>${tTxt(uRun.t0, all)}</span>
+    step(U.phase === 'send' ? 'r4' : 'u4', null, `${U.phase === 'send' ? '④' : '④'} 지금 하는 일: ${U.phase === 'send' ? 'PC → 모바일 폰 보내기' : 'USB로 백업'} ${U.phase === 'send' ? '(모바일 폰을 뽑지 마세요)' : '(뽑았다 다시 꽂아도 이어서 합니다)'} · 전체 ${all.toFixed(0)}%<br><span class="sub">지금 단계 ${U.phase === 'walk' ? 1 : U.phase === 'compare' ? 2 : ph[0]}/${U.phase === 'walk' || U.phase === 'compare' ? 2 : 4}: ${ph[1]}${cnt ? ' · ' + cnt : ''}${U.total ? ' · ' + sp.toFixed(0) + '%' : ''}<br>${tTxt(uRun.t0, all)}</span>
       <div style="height:16px;background:#e5e7eb;border-radius:8px;overflow:hidden;margin:6px 0 2px"><i style="display:block;height:100%;width:${all.toFixed(1)}%;background:#22c55e;transition:width .5s"></i></div>
-      <div class="sub">① 목록 읽기 ${ph[0] > 1 ? '✔' : ph[0] === 1 ? '…' : ''} → ② PC에 있는지 확인 ${ph[0] > 2 ? '✔' : ph[0] === 2 ? '…' : ''} → ③ 복사 ${ph[0] > 3 ? '✔' : ph[0] === 3 ? '…' : ''} → ④ 비교 ${ph[0] === 4 ? '…' : ''}</div>`, `<button onclick="hget('/stop',true)">■ 멈춤</button>`); }
+      <div class="sub">${U.phase === 'walk' || (U.phase === 'compare' && !U.list) ? `① 읽으면서 없는 것만 복사 ${U.phase === 'walk' ? '…' : '✔'} → ② 비교 ${U.phase === 'compare' ? '…' : ''}<br>뽑혀도 괜찮습니다. 다시 꽂으면 끝낸 것은 건너뛰고 이어서 합니다` : `① 목록 읽기 ${ph[0] > 1 ? '✔' : ph[0] === 1 ? '…' : ''} → ② PC에 있는지 확인 ${ph[0] > 2 ? '✔' : ph[0] === 2 ? '…' : ''} → ③ 복사 ${ph[0] > 3 ? '✔' : ph[0] === 3 ? '…' : ''} → ④ 비교 ${ph[0] === 4 ? '…' : ''}`}</div>`, `<button onclick="hget('/stop',true)">■ 멈춤</button>`); }
   else {
     uRun = null;
     // ④ 백업 시작: 자동이면 연결될 때마다 한 번, 5, 4, 3, 2, 1 뒤 저절로 시작 (옆 [시작]은 수동)

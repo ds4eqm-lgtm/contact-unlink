@@ -132,34 +132,72 @@ $copy = {
   $r = FindCU $sh
   if (-not $r.cu) { St @{ busy = $false; last = @{ ok = $false; msg = '모바일 폰의 Download\묶인연락처풀기 폴더를 찾지 못했습니다' } }; return }
   $dst = Join-Path $T '묶인연락처풀기'; New-Item -ItemType Directory -Force -Path $dst | Out-Null
-  St @{ busy = $true; phase = 'list'; done = 0; total = 0; msg = '모바일 폰 파일 목록을 읽는 중…' }
-  $list = New-Object System.Collections.ArrayList
-  # Ver0.91: 단계마다(목록 읽기 → PC에 있는지 확인 → 복사 → 비교) 몇 개째인지 알려 막대와 %가 오르게 한다
-  function Walk($f, $rel) { foreach ($it in $f.Items()) { if ($it.IsFolder) { Walk $it.GetFolder (JP $rel $it.Name) } else { [void]$list.Add(@{ it = $it; rel = $rel; name = $it.Name; size = [int64]("0" + $it.ExtendedProperty('System.Size')) }); if ($list.Count % 500 -eq 0) { St @{ busy = $true; phase = 'list'; done = $list.Count; total = 0; msg = "모바일 폰 파일 목록을 읽는 중: $($list.Count)개" } } } } }
-  Walk $r.cu.GetFolder ''
-  $todo = New-Object System.Collections.ArrayList; $ci = 0
-  foreach ($x in $list) { $p = Join-Path (JP $dst $x.rel) $x.name; if (-not (Test-Path -LiteralPath $p) -or ($x.size -gt 0 -and (Get-Item -LiteralPath $p).Length -ne $x.size)) { [void]$todo.Add($x) }; $ci++; if ($ci % 500 -eq 0) { St @{ busy = $true; phase = 'check'; done = $ci; total = $list.Count; msg = "PC에 이미 있는지 확인하는 중: $ci / $($list.Count)개" } } }
-  $n = 0; $bad = 0; $t0 = [DateTime]::Now; $bytes = 0
-  foreach ($f in $todo) {
-    if (Test-Path (Join-Path $T '.stop')) { Remove-Item (Join-Path $T '.stop') -Force; St @{ busy = $false; last = @{ ok = $false; msg = "멈췄습니다. $n / $($todo.Count)개 복사. 다시 시작하면 남은 것만 복사합니다" } }; return }
-    $dd = JP $dst $f.rel; New-Item -ItemType Directory -Force -Path $dd | Out-Null
-    $p = Join-Path $dd $f.name
-    if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }   # 크기가 다른 PC 쪽 파일만 지우고 다시 받는다(모바일 폰은 그대로)
-    $sh.NameSpace($dd).CopyHere($f.it, 4 + 16 + 512 + 1024)
-    $w = 0; while ($w -lt 600) { Start-Sleep -Milliseconds 200; $w++; if ((Test-Path -LiteralPath $p) -and ($f.size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $f.size)) { break } }
-    $ok = Test-Path -LiteralPath $p
-    if ($ok -and $f.name -match '^([0-9a-f]{64})') { $h = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower(); if ($h -ne $Matches[1]) { $ok = $false } }   # 사진은 이름의 지문값과 바이트가 같은지
-    if (-not $ok) { $bad++ } else { $bytes += $f.size }
-    $n++; $sec = ([DateTime]::Now - $t0).TotalSeconds
-    if ($n % 5 -eq 0 -or $n -eq $todo.Count) { St @{ busy = $true; phase = 'copy'; done = $n; total = $todo.Count; msg = "복사하는 중 $n / $($todo.Count)개 ($([math]::Round($bytes/1MB,1))MB, 초당 $([math]::Round($bytes/1MB/[math]::Max($sec,0.1),1))MB)" + $(if ($bad) { " · 문제 $bad개" } else { '' }) } }
+  # Ver0.128 대표님 지시: USB를 뽑았다 다시 꽂아도 처음부터 하지 않고 이어서 한다.
+  #  - 다 받고 확인까지 끝낸 파일은 PC의 .받은목록.txt 에 한 줄씩 바로 적는다(뽑혀도 남음)
+  #  - 다시 꽂으면 그 목록에 있고 PC 파일 크기도 같은 사진(이름 = 지문값이라 내용이 바뀌지 않음)은 모바일 폰에 크기를 묻지 않고 바로 건너뛴다
+  #  - 목록을 다 읽은 다음에 복사하지 않고, 읽으면서 없는 것을 바로 복사한다(꽂자마자 새 파일부터 받음)
+  $mf = Join-Path $dst '.받은목록.txt'; $nf = Join-Path $dst '.전체수.txt'
+  $done = @{}; $prev = 0
+  try { if (Test-Path -LiteralPath $mf) { foreach ($ln in [IO.File]::ReadAllLines($mf, [Text.Encoding]::UTF8)) { $a = $ln.Split("`t"); if ($a.Count -ge 2) { $done[$a[0]] = [int64]$a[1] } } } } catch { $done = @{} }
+  try { if (Test-Path -LiteralPath $nf) { $prev = [int]([IO.File]::ReadAllText($nf).Trim()) } } catch { }
+  $S = @{ seen = 0; skip = 0; n = 0; bad = 0; bytes = 0; t0 = [DateTime]::Now; stop = $false; at = [DateTime]::MinValue; files = (New-Object System.Collections.ArrayList); resumed = $done.Count }
+  $mw = $null
+  function Prog($force) {
+    if (-not $force -and ([DateTime]::Now - $S.at).TotalMilliseconds -lt 700) { return }
+    $S.at = [DateTime]::Now; $sec = ([DateTime]::Now - $S.t0).TotalSeconds
+    $tot = [math]::Max($prev, $S.seen)
+    St @{ busy = $true; phase = 'walk'; done = $S.seen; total = $tot; resumed = $S.resumed; msg = "모바일 폰 파일 $($S.seen) / $tot개 확인 · 지난번에 끝내서 건너뜀 $($S.skip)개 · 새로 복사 $($S.n)개 ($([math]::Round($S.bytes/1MB,1))MB, 초당 $([math]::Round($S.bytes/1MB/[math]::Max($sec,0.1),1))MB)" + $(if ($S.bad) { " · 문제 $($S.bad)개" } else { '' }) }
   }
+  function One($it, $rel) {
+    $S.seen++
+    $name = $it.Name; $key = JP $rel $name; $dd = JP $dst $rel; $p = Join-Path $dd $name
+    $isPh = $name -match '^[0-9a-f]{64}'
+    if ($isPh -and $done.ContainsKey($key) -and (Test-Path -LiteralPath $p) -and (Get-Item -LiteralPath $p).Length -eq $done[$key]) { $S.skip++; [void]$S.files.Add(@{ rel = $rel; name = $name; size = $done[$key] }); Prog $false; return }
+    $size = [int64]("0" + $it.ExtendedProperty('System.Size'))
+    [void]$S.files.Add(@{ rel = $rel; name = $name; size = $size })
+    if ((Test-Path -LiteralPath $p) -and ($size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $size) -and -not ($isPh -and -not $done.ContainsKey($key))) { $S.skip++; Prog $false; return }
+    if ($isPh -and (Test-Path -LiteralPath $p) -and (Get-Item -LiteralPath $p).Length -eq $size) {
+      # 예전 판에서 받은 사진: 지문값이 맞으면 받은목록에만 적고 건너뛴다
+      $h = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower()
+      if ($h -eq $name.Substring(0, 64)) { $mw.WriteLine("$key`t$size"); $done[$key] = $size; $S.skip++; Prog $false; return }
+    }
+    New-Item -ItemType Directory -Force -Path $dd | Out-Null
+    if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }   # 크기가 다르거나 덜 받은 PC 쪽 파일만 지우고 다시 받는다(모바일 폰은 그대로)
+    $sh.NameSpace($dd).CopyHere($it, 4 + 16 + 512 + 1024)
+    $w = 0; while ($w -lt 600) { Start-Sleep -Milliseconds 200; $w++; if ((Test-Path -LiteralPath $p) -and ($size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $size)) { break } }
+    $ok = (Test-Path -LiteralPath $p) -and ($size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $size)
+    if ($ok -and $isPh) { $h = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower(); if ($h -ne $name.Substring(0, 64)) { $ok = $false } }   # 사진은 이름의 지문값과 바이트가 같은지
+    if (-not $ok) { $S.bad++ } else { $S.bytes += $size; if ($isPh) { $mw.WriteLine("$key`t$size"); $done[$key] = $size } }
+    $S.n++; Prog $false
+  }
+  function Walk($f, $rel) {
+    foreach ($it in $f.Items()) {
+      if ($S.stop) { return }
+      if (Test-Path -LiteralPath (Join-Path $T '.stop')) { $S.stop = $true; return }
+      if ($it.IsFolder) { Walk $it.GetFolder (JP $rel $it.Name) } else { One $it $rel }
+    }
+  }
+  St @{ busy = $true; phase = 'walk'; done = 0; total = $prev; resumed = $done.Count; msg = $(if ($done.Count) { "이어서 합니다: 지난번에 끝낸 사진 $($done.Count)개는 건너뜁니다" } else { '모바일 폰 파일을 하나씩 보며 PC에 없는 것을 복사합니다' }) }
+  try {
+    $mw = New-Object IO.StreamWriter($mf, $true, (New-Object Text.UTF8Encoding($false))); $mw.AutoFlush = $true
+    Walk $r.cu.GetFolder ''
+  } catch {
+    try { $mw.Close() } catch { }
+    St @{ busy = $false; last = @{ ok = $false; resume = $true; msg = "모바일 폰 연결이 끊겼습니다. 확인 $($S.seen)개, 새로 복사 $($S.n)개까지 PC에 남았습니다. 다시 꽂으면 처음부터 하지 않고 이어서 합니다" } }; return
+  }
+  try { $mw.Close() } catch { }
+  if (-not $S.stop -and -not (FindCU $sh).cu) { St @{ busy = $false; last = @{ ok = $false; resume = $true; msg = "모바일 폰 연결이 끊겼습니다. 확인 $($S.seen)개, 새로 복사 $($S.n)개까지 PC에 남았습니다. 다시 꽂으면 처음부터 하지 않고 이어서 합니다" } }; return }   # 읽다가 뽑히면 목록이 조용히 짧아지므로 다시 확인
+  if ($S.stop) { Remove-Item (Join-Path $T '.stop') -Force -ErrorAction SilentlyContinue; St @{ busy = $false; last = @{ ok = $false; resume = $true; msg = "멈췄습니다. 확인 $($S.seen)개, 새로 복사 $($S.n)개. 다시 시작하면 끝낸 것은 건너뛰고 이어서 합니다" } }; return }
+  $list = $S.files
+  try { [IO.File]::WriteAllText($nf, "$($list.Count)") } catch { }
   # Ver0.71: 끝나면 모바일 폰 파일 목록과 PC 파일을 하나하나 비교한다(있는지, 크기가 같은지)
   St @{ busy = $true; phase = 'compare'; done = 0; total = $list.Count; msg = '모바일 폰과 PC를 비교하는 중…' }
   $match = 0; $ci = 0
   foreach ($x in $list) { $p = Join-Path (JP $dst $x.rel) $x.name; if ((Test-Path -LiteralPath $p) -and ($x.size -le 0 -or (Get-Item -LiteralPath $p).Length -eq $x.size)) { $match++ }; $ci++; if ($ci % 500 -eq 0) { St @{ busy = $true; phase = 'compare'; done = $ci; total = $list.Count; msg = "모바일 폰과 PC를 비교하는 중: $ci / $($list.Count)개" } } }
+  $bad = $S.bad; $n = $S.n
   $perfect = ($bad -eq 0) -and ($match -eq $list.Count)
-  $msg = $(if ($perfect) { "완벽합니다. PC와 모바일 폰이 똑같습니다 (파일 $($list.Count)개 모두 같음, 새로 복사 $($todo.Count)개, 사진은 지문값까지 확인)" } else { "다른 것이 있습니다: 모바일 폰 $($list.Count)개 중 PC에 같은 것 $match개, 문제 $bad개. [예, 시작]을 다시 누르면 다른 것만 다시 복사합니다" })
-  St @{ busy = $false; done = $n; total = $todo.Count; last = @{ ok = $perfect; msg = $msg; files = $list.Count; match = $match; copied = $todo.Count } }
+  $msg = $(if ($perfect) { "완벽합니다. PC와 모바일 폰이 똑같습니다 (파일 $($list.Count)개 모두 같음, 새로 복사 $n개, 지난번에 끝내서 건너뜀 $($S.skip)개, 사진은 지문값까지 확인)" } else { "다른 것이 있습니다: 모바일 폰 $($list.Count)개 중 PC에 같은 것 $match개, 문제 $bad개. [예, 시작]을 다시 누르면 다른 것만 다시 복사합니다" })
+  St @{ busy = $false; done = $n; total = $n; last = @{ ok = $perfect; msg = $msg; files = $list.Count; match = $match; copied = $n } }
 }
 # ---------- Ver0.106: PC → 모바일 폰 되살리기 (USB) ----------
 # 고른 백업(.json + 같이 만든 vcf·확인결과 + 그 백업이 쓰는 원본 사진)을 모바일 폰 Download\묶인연락처풀기_PC에서 로 보낸다.
@@ -296,7 +334,9 @@ while ($L.IsListening) {
             $sh.NameSpace($tmpD).CopyHere($di, 0x614); $tf2 = Join-Path $tmpD '_기기번호.txt'; for ($i = 0; $i -lt 30 -and -not (Test-Path $tf2); $i++) { Start-Sleep -Milliseconds 100 }; Start-Sleep -Milliseconds 200
             if (Test-Path $tf2) { $ln = @((Get-Content $tf2 -Raw -Encoding UTF8) -split "`n"); $script:devVal = @($ln[0].Trim(), $(if ($ln.Count -gt 1) { $ln[1].Trim() } else { '' })); $script:devKey = $key } }
           if ($script:devKey -eq $key) { $o.dev = $script:devVal[0]; $o.devModel = $script:devVal[1] } } } catch { } }
-      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; if ($st.last) { $o.last = $st.last }; if ($st.sendLast) { $o.sendLast = $st.sendLast } }
+      # Ver0.128: 복사하다 USB가 뽑혀 멈춰 버린 일(3분 넘게 소식 없음)은 끝내서, 다시 꽂으면 새로 이어서 시작하게 한다
+      if ($job -and $job.State -eq 'Running' -and (Test-Path $sf) -and ([DateTime]::Now - (Get-Item $sf).LastWriteTime).TotalSeconds -gt 180) { try { Stop-Job $job; Remove-Job $job -Force } catch { }; $job = $null }
+      if (Test-Path $sf) { $st = Get-Content $sf -Raw -Encoding UTF8 | ConvertFrom-Json; $o.busy = [bool]$st.busy -and $job -and $job.State -eq 'Running'; $o.phase = $st.phase; $o.done = $st.done; $o.total = $st.total; $o.msg = $st.msg; $o.resumed = $st.resumed; if ($st.last) { $o.last = $st.last }; if ($st.sendLast) { $o.sendLast = $st.sendLast } }
       Reply $ctx $o
     } elseif ($path -eq '/pick') {
       Add-Type -AssemblyName System.Windows.Forms
