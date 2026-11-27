@@ -123,7 +123,7 @@ table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px
 </main>
 <div id="big" onclick="this.style.display='none'"><img id="bigImg"></div>
 <script>
-const VER = '0.126';
+const VER = '0.127';
 document.getElementById('ver').textContent = 'Ver' + VER; // Ver0.61: 위 칸 번호가 예전 번호(0.45)로 보이던 것 고침
 const LINK = 'https://github.com/ds4eqm-lgtm/contact-unlink';
 const PHOTO = '사진원본', BASE = '묶인연락처풀기';
@@ -736,11 +736,12 @@ async function usbTick(){
   step('u0', true, 'PC 도우미: 켜짐');
   step('u1', !!U.phone, U.phone ? `① USB 연결됨: ${esc(U.phone)}` : '① USB 연결 안 됨: 모바일 폰을 USB 선으로 PC에 꽂아 주세요');
   step('u2', U.phone ? !!U.mtp : null, !U.phone ? '② 파일 전송 (선을 꽂으면 확인합니다)' : U.mtp ? (U.found ? '② 파일 전송 켜짐: 모바일 폰 Download/묶인연락처풀기 폴더가 보입니다' : '② 파일 전송 켜짐, 그런데 모바일 폰 Download 안에 "묶인연락처풀기" 폴더가 없습니다. 모바일 폰 앱에서 먼저 백업해 주세요') : '② 파일 전송 꺼짐: 모바일 폰 화면 위 알림에서 [USB 파일 전송] → [파일 전송]을 골라 주세요');
+  if (ls('usbAuto127') !== '1') { ls('usbAuto', '1'); ls('usbAuto127', '1'); } // Ver0.127: 꺼져 있던 3번 [모두 자동]을 한 번 다시 켠다
   const auto = ls('usbAuto') !== '0'; try { $('#uAutoChk').checked = auto; } catch(e){}
   if (!U.phone) { uSess = null; }
   else if (!uSess) { uSess = { at: Date.now(), started: false, restoreAsked: false }; if (U.found !== false) jump('usbCard'); }
   // ③ PC 보관 위치: 지난번 그대로(기억, 업데이트해도 바꾸지 않음). 처음이면 5, 4, 3, 2, 1 뒤 그대로
-  if (!uKeep && U.phone && U.mtp && auto && !(U.dev && myDevs().size && !myDevs().has(U.dev))) cdStart('u3', () => { uKeep = true; ls('uKeep', '1'); if (uSess && !uSess.started && U && U.found && !rRun) { uSess.started = true; usbGo(true); } else usbTick(); }); // Ver0.117: 5,4,3,2,1이 끝나면 다시 묻지 않고 바로 백업 시작
+  if (!uKeep && U.phone && U.mtp && auto && !(U.dev && myDevs().size && !myDevs().has(U.dev))) cdStart('u3', () => { uKeep = true; ls('uKeep', '1'); if (uSess && !uSess.started && U && U.found && !rRun) { uSess.started = true; uSess.startAt = Date.now(); usbGo(true); } else usbTick(); }); // Ver0.117: 5,4,3,2,1이 끝나면 다시 묻지 않고 바로 백업 시작
   step('u3', uKeep ? true : null, uKeep ? `③ PC 보관 위치: 지난번 그대로 ${esc(U.target)}` : `③ PC 보관 위치를 지난번 그대로 하시겠습니까?<br><span class="sub">${esc(U.target)}${U.targetNew ? ' (처음이라 문서 안에 새로 만들 곳입니다)' : ''}</span>${cdTxt('u3')}`,
     (uKeep ? '' : `<button class="pri" onclick="cdStop('u3');uKeep=true;ls('uKeep','1');usbTick()">예, 그대로</button>`) + `<button onclick="cdStop('u3');usbPick()">바꾸기</button> <button onclick="usbOpen()">📂 열기</button>` + (cdOn('u3') ? `<button onclick="cdStop('u3');if(uSess)uSess.started=true;usbTick()">■ 멈춤 (자동 시작 안 함)</button>` : ''));
   const ready = U.phone && U.mtp && U.found && uKeep;
@@ -755,11 +756,13 @@ async function usbTick(){
     uRun = null;
     // ④ 백업 시작: 자동이면 연결될 때마다 한 번, 5, 4, 3, 2, 1 뒤 저절로 시작 (옆 [시작]은 수동)
     const otherU = !!(U.dev && myDevs().size && !myDevs().has(U.dev)); // Ver0.122: 대표님 모바일 폰이 아닌 다른 기계면 대표님 보관 폴더에 저절로 백업하지 않는다
-    if (ready && auto && !otherU && uSess && !uSess.started && !rRun) cdStart('u4', () => { uSess.started = true; usbGo(true); });
+    // Ver0.127 대표님 지시: ④도 늘 5, 4, 3, 2, 1 뒤 저절로. [■ 멈춤]을 누른 때만 멈추고, 시작했는데 아무 일도 안 일어났으면(도우미가 못 받음) 다시 센다
+    if (uSess && uSess.started && !U.busy && !U.last && Date.now() - (uSess.startAt || 0) > 20000) uSess.started = false; // 도우미는 시작할 때 지난 결과를 지우므로, 결과가 없으면 시작이 안 된 것
+    if (ready && auto && !otherU && uSess && !uSess.started && !uSess.stopped && !rRun) cdStart('u4', () => { uSess.started = true; uSess.startAt = Date.now(); usbGo(true); });
     const doneNow = U.last && uSess && uSess.started;
     if (doneNow && U.last.ok && U.phone) { ls('usbPhone', U.phone); if (!otherU) myDevAdd(U.dev); } // Ver0.117: 백업한 모바일 폰 기종을 기억(같은 기종의 새 모바일 폰이 오면 한 번 묻는다)
-    step('u4', doneNow && U.last.ok ? true : ready ? null : false, doneNow ? `④ 백업 끝` : ready ? (otherU ? `④ <span style="color:#c62828">대표님 모바일 폰이 아닌 다른 기계입니다 (기기 번호 ${esc(devShort(U.dev))}). 대표님 백업과 섞이지 않게 저절로 백업하지 않습니다</span>` : cdOn('u4') ? `④ 백업을 저절로 시작합니다${cdTxt('u4')}` : `④ 백업: [시작 (수동)]을 누르면 시작합니다`) : '④ 백업 시작 (위 불이 모두 켜지면 5, 4, 3, 2, 1 뒤 저절로)',
-      `<button class="pri" ${ready ? '' : 'disabled'} onclick="cdStop('u4');if(uSess)uSess.started=true;usbGo(true)">시작 (수동)</button>${cdOn('u4') ? `<button onclick="cdStop('u4');if(uSess)uSess.started=true;usbTick()">■ 멈춤 (자동 시작 안 함)</button>` : ''}`); }
+    step('u4', doneNow && U.last.ok ? true : ready ? null : false, doneNow ? `④ 백업 끝` : ready ? (otherU ? `④ <span style="color:#c62828">대표님 모바일 폰이 아닌 다른 기계입니다 (기기 번호 ${esc(devShort(U.dev))}). 대표님 백업과 섞이지 않게 저절로 백업하지 않습니다</span>` : cdOn('u4') ? `④ 백업을 저절로 시작합니다${cdTxt('u4')}` : uSess && uSess.stopped ? `④ 자동 시작을 멈췄습니다. [시작 (수동)]을 누르면 바로 시작합니다` : `④ 백업을 곧 저절로 시작합니다 (5, 4, 3, 2, 1)`) : '④ 백업 시작 (위 불이 모두 켜지면 5, 4, 3, 2, 1 뒤 저절로)',
+      `<button class="pri" ${ready ? '' : 'disabled'} onclick="cdStop('u4');if(uSess){uSess.started=true;uSess.startAt=Date.now();uSess.stopped=false}usbGo(true)">시작 (수동)</button>${cdOn('u4') ? `<button onclick="cdStop('u4');if(uSess)uSess.stopped=true;usbTick()">■ 멈춤 (자동 시작 안 함)</button>` : ''}`); }
   // ⑤ 비교 결과 (복사가 끝나면 저절로 비교함), ⑥ 복구하는 방법
   if (U.last && U.last.files != null) { const k = U.last.files + '|' + U.last.match + '|' + U.last.msg; if (ls('sumUk') !== k) { ls('sumUk', k); ls('sumU', JSON.stringify({ ok: !!U.last.ok, files: U.last.files, match: U.last.match, at: Date.now() })); } }
   bothDraw();
